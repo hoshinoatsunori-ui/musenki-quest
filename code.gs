@@ -54,7 +54,7 @@ const DEFAULT_CONFIG = [
 // ===== Webアプリ入口 =====
 
 function doGet(e) {
-  const template = HtmlService.createTemplateFromFile('無題');
+  const template = HtmlService.createTemplateFromFile('chiri');
   return template.evaluate()
     .setTitle('地理クエスト')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, user-scalable=no')

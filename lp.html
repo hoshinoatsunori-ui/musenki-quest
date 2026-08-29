@@ -702,7 +702,7 @@
             <div class="codeview-tabbar">
               <span class="codeview-traffic"><span></span><span></span><span></span></span>
               <div class="codeview-fileinfo">
-                <span class="codeview-filename">コード.gs</span>
+                <span class="codeview-filename">code.gs</span>
                 <span class="codeview-tag">サーバー</span>
               </div>
               <div class="codeview-actions">
@@ -711,7 +711,7 @@
                 <button class="codeview-btn cv-copy">COPY</button>
               </div>
             </div>
-            <pre class="codeview-src" data-filename="コード.gs">/*
+            <pre class="codeview-src" data-filename="code.gs">/*
   地理クエスト
   Copyright (c) 2026 kimura yoshiki
   Note: https://note.com/cozy_auklet6005
@@ -767,7 +767,7 @@ const DEFAULT_CONFIG = [
 // ===== Webアプリ入口 =====
 
 function doGet(e) {
-  const template = HtmlService.createTemplateFromFile('無題');
+  const template = HtmlService.createTemplateFromFile('chiri');
   return template.evaluate()
     .setTitle('地理クエスト')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, user-scalable=no')
@@ -1096,7 +1096,7 @@ function buildSampleQuestions_() {
             <div class="codeview-tabbar">
               <span class="codeview-traffic"><span></span><span></span><span></span></span>
               <div class="codeview-fileinfo">
-                <span class="codeview-filename">無題.html</span>
+                <span class="codeview-filename">chiri.html</span>
                 <span class="codeview-tag">フロント</span>
               </div>
               <div class="codeview-actions">
@@ -1105,7 +1105,7 @@ function buildSampleQuestions_() {
                 <button class="codeview-btn cv-copy">COPY</button>
               </div>
             </div>
-            <pre class="codeview-src" data-filename="無題.html">&lt;!--
+            <pre class="codeview-src" data-filename="chiri.html">&lt;!--
   地理クエスト
   Copyright (c) 2026 kimura yoshiki
   Note: https://note.com/cozy_auklet6005
@@ -5361,8 +5361,8 @@ requestAnimationFrame(loop);
 
 <!-- SETUP_STEPS_AFTER_CODE_BLOCK -->
         <div class="step"><div class="step-num">3</div><h3>3つのファイルを貼り付ける</h3><p>上のコードをそれぞれコピーして貼り付けます。</p><ul>
-<li><b>コード.gs</b> … 最初から入っている「コード.gs」の中身を全部消してから貼り付けます</li>
-<li><b>無題.html</b> … 左の「ファイル」の＋から「HTML」を選び、ファイル名を <code>無題</code> にして貼り付けます（.htmlは自動で付きます）</li>
+<li><b>code.gs</b> … 最初から入っている「コード.gs」の中身を全部消してから貼り付けます（.gs のファイル名は変えなくても動きます）</li>
+<li><b>chiri.html</b> … 左の「ファイル」の＋から「HTML」を選び、ファイル名を <code>chiri</code> にして貼り付けます（.htmlは自動で付きます）。この名前は <code>code.gs</code> の <code>doGet()</code> が読み込む名前なので、変える場合は両方そろえてください</li>
 <li><b>appsscript.json</b> … 左下の「プロジェクトの設定」で「appsscript.json マニフェスト ファイルをエディタで表示する」にチェックを入れると編集できるようになります</li>
 </ul></div>
         <div class="step"><div class="step-num">4</div><h3>ウェブアプリとしてデプロイする</h3><p>右上の「デプロイ」→「新しいデプロイ」→歯車から「ウェブアプリ」を選びます。</p><ul>
@@ -5429,8 +5429,8 @@ requestAnimationFrame(loop);
         <details><summary>地理以外の教科でも使えますか？</summary><div class="a">使えます。問題シートの中身を入れ替えれば、歴史でも理科でも英単語でも同じように動きます。分野名を変えると出てくる敵も変わります。</div></details>
         <details><summary>通信が切れたらどうなりますか？</summary><div class="a">サーバーにつながらないときは「おためしモード」に切り替わり、内蔵の問題でゲームだけは続けられます。授業中に止まってしまわないための作りです。ただしこの間の解答は記録されません。</div></details>
         <details><summary>生徒の進捗をリセットしたいのですが</summary><div class="a">「進捗」シートの該当する行を削除すれば、その生徒はレベル1から始まります。クラスごと消したい場合は行をまとめて削除してください。</div></details>
-        <details><summary>マップや敵を自分で変えられますか？</summary><div class="a">変えられます。<code>無題.html</code> の中に、マップは1文字＝1マスの文字列（g=草原 f=森 m=山 w=海 r=道 t=町 c=城 d=砂漠 b=橋 v=村）、キャラと地形は1文字＝1ドットのドット絵として書いてあります。文字を書き換えれば地形も絵も変わります。</div></details>
-        <details><summary>カスタマイズしたい / バグ見つけた</summary><div class="a">コード.gs / 無題.html はそのまま読みやすい構成にしてあります。改変は個人利用範囲内で自由にどうぞ。バグ報告・要望は X <a href="https://x.com/kimura_0314" target="_blank" rel="noopener">@kimura_0314</a> までDM or リプライ。</div></details>
+        <details><summary>マップや敵を自分で変えられますか？</summary><div class="a">変えられます。<code>chiri.html</code> の中に、マップは1文字＝1マスの文字列（g=草原 f=森 m=山 w=海 r=道 t=町 c=城 d=砂漠 b=橋 v=村）、キャラと地形は1文字＝1ドットのドット絵として書いてあります。文字を書き換えれば地形も絵も変わります。</div></details>
+        <details><summary>カスタマイズしたい / バグ見つけた</summary><div class="a">code.gs / chiri.html はそのまま読みやすい構成にしてあります。改変は個人利用範囲内で自由にどうぞ。バグ報告・要望は X <a href="https://x.com/kimura_0314" target="_blank" rel="noopener">@kimura_0314</a> までDM or リプライ。</div></details>
 <!-- /FAQ_BLOCK -->
       </div>
     </div>
