@@ -1,0 +1,1290 @@
+<!--
+  無線クエスト
+  Version 1.0
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>無線クエスト</title>
+<style>
+  :root {
+    --void: #070b16;
+    --panel: #0d1426;
+    --panel-2: #131d33;
+    --edge: #eaf2ff;
+    --ink: #eaf2ff;
+    --dim: #8494b4;
+    --signal: #38e0d0;
+    --gold: #ffc94a;
+    --hit: #ff5f6d;
+    --ok: #6ee787;
+    --band: #4a7ad6;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, #1a2a52 0%, transparent 60%),
+      var(--void);
+    color: var(--ink);
+    font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* 走査線。ブラウン管っぽさを薄く重ねる */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 99;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom, rgba(255,255,255,.028) 0 1px, transparent 1px 3px);
+  }
+
+  #stage { max-width: 760px; margin: 0 auto; padding: 14px 14px 40px; }
+
+  .view { display: none; }
+  .view.on { display: block; animation: fade .22s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+
+  /* ===== 枠 ===== */
+  .frame {
+    position: relative;
+    background: var(--panel);
+    border: 2px solid var(--edge);
+    border-radius: 3px;
+    box-shadow: 0 0 0 4px var(--void), 0 0 26px rgba(56,224,208,.10);
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .frame.tight { padding: 12px 14px; }
+  .frame > h2 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    letter-spacing: .16em;
+    color: var(--signal);
+    border-bottom: 1px dashed #2b3a5e;
+    padding-bottom: 8px;
+  }
+
+  /* ===== タイトル ===== */
+  .logo {
+    text-align: center;
+    font-size: clamp(30px, 8vw, 50px);
+    letter-spacing: .16em;
+    margin: 26px 0 2px;
+    font-weight: 800;
+    color: var(--ink);
+    text-shadow: 0 0 18px rgba(56,224,208,.55), 3px 3px 0 #16233f;
+  }
+  .tagline { text-align: center; color: var(--dim); letter-spacing: .3em; margin-bottom: 20px; font-size: 12px; }
+
+  /* 電波が広がるアニメーション */
+  .beacon { display: block; margin: 0 auto 10px; }
+  .beacon circle { fill: none; stroke: var(--signal); stroke-width: 2; transform-origin: 60px 62px; }
+  .beacon .r1 { animation: ping 2.4s linear infinite; }
+  .beacon .r2 { animation: ping 2.4s linear infinite .8s; }
+  .beacon .r3 { animation: ping 2.4s linear infinite 1.6s; }
+  @keyframes ping {
+    from { transform: scale(.25); opacity: .9; }
+    to   { transform: scale(1.5); opacity: 0; }
+  }
+
+  /* ===== 入力 ===== */
+  label.lead { display: block; color: var(--dim); font-size: 12px; letter-spacing: .1em; margin-bottom: 5px; }
+  input[type=text], textarea, select {
+    width: 100%;
+    background: var(--void);
+    color: var(--ink);
+    border: 2px solid #2b3a5e;
+    border-radius: 3px;
+    padding: 9px 11px;
+    font: inherit;
+    font-size: 15px;
+  }
+  input[type=text]:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--signal);
+  }
+  textarea { resize: vertical; min-height: 74px; }
+  .field { margin-bottom: 13px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ===== ボタン ===== */
+  .btn {
+    display: inline-block;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 2px solid var(--edge);
+    border-radius: 3px;
+    padding: 10px 20px;
+    font: inherit;
+    font-weight: 700;
+    letter-spacing: .1em;
+    cursor: pointer;
+    transition: transform .08s, background .15s;
+  }
+  .btn:hover:not(:disabled) { background: #1d2b4c; }
+  .btn:active:not(:disabled) { transform: translateY(2px); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.wide { display: block; width: 100%; }
+  .btn.go { background: #14413f; border-color: var(--signal); color: var(--signal); }
+  .btn.quiet { border-color: #3d4d73; color: var(--dim); font-weight: 400; padding: 7px 14px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ===== ステータス帯 ===== */
+  .status { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .status .who { font-weight: 700; letter-spacing: .08em; }
+  .status .lv { color: var(--gold); font-weight: 700; }
+  .meter { flex: 1 1 130px; min-width: 110px; }
+  .meter .cap { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); }
+  .bar { height: 9px; background: #1b2b48; border: 1px solid #35476f; border-radius: 2px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--ok); transition: width .35s; }
+  .bar.exp > i { background: var(--gold); }
+  .bar.foe > i { background: var(--hit); }
+  .bar.low > i { background: var(--hit); }
+
+  /* ===== エリア一覧 ===== */
+  .areas { display: grid; gap: 12px; }
+  .area {
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    background: var(--panel-2);
+    border: 2px solid #2b3a5e;
+    border-radius: 3px;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+  }
+  .area:hover:not(.locked) { border-color: var(--signal); }
+  .area.locked { opacity: .45; cursor: not-allowed; }
+  .area.done { border-color: var(--gold); }
+  .area .name { font-weight: 700; letter-spacing: .06em; }
+  .area .sub { font-size: 12px; color: var(--dim); }
+  .area .mark { font-size: 11px; letter-spacing: .1em; }
+
+  .track { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+  .track i {
+    width: 15px; height: 8px; border-radius: 1px;
+    background: #24365c; border: 1px solid #35476f;
+  }
+  .track i.past { background: var(--signal); border-color: var(--signal); }
+  .track i.boss { width: 22px; background: #3a1f2b; border-color: var(--hit); }
+  .track i.boss.past { background: var(--gold); border-color: var(--gold); }
+
+  .badge {
+    display: inline-block;
+    background: #3a2f10; color: var(--gold);
+    border: 1px solid var(--gold); border-radius: 2px;
+    font-size: 11px; letter-spacing: .08em;
+    padding: 1px 7px; margin: 2px 3px 2px 0;
+  }
+  .badge.plain { background: #16233f; color: var(--dim); border-color: #3d4d73; }
+
+  /* ===== バトル ===== */
+  .arena {
+    position: relative;
+    text-align: center;
+    padding: 18px 0 10px;
+    background: radial-gradient(ellipse at 50% 78%, #1b2c52 0%, transparent 70%);
+  }
+  .foe-svg { display: block; margin: 0 auto; animation: bob 2.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .foe-svg.struck { animation: struck .3s steps(2) 3; }
+  @keyframes struck { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .foe-svg.gone { animation: gone .5s ease-in forwards; }
+  @keyframes gone { to { opacity: 0; transform: translateY(16px) scale(.7); } }
+
+  .foe-name { font-weight: 700; letter-spacing: .12em; margin-top: 6px; }
+  .foe-name .tier { color: var(--dim); font-size: 12px; font-weight: 400; margin-left: 8px; }
+
+  .pop {
+    position: absolute; left: 50%; top: 34%;
+    transform: translateX(-50%);
+    font-size: 30px; font-weight: 800;
+    opacity: 0; pointer-events: none;
+  }
+  .pop.show { animation: rise .85s ease-out; }
+  @keyframes rise {
+    0%   { opacity: 1; transform: translate(-50%, 0) scale(.7); }
+    35%  { opacity: 1; transform: translate(-50%, -22px) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+  }
+
+  .qgenre { color: var(--signal); font-size: 12px; letter-spacing: .14em; }
+  .qbody { font-size: 17px; margin: 8px 0 14px; line-height: 1.8; }
+  .qfrom { font-size: 11px; color: var(--gold); letter-spacing: .06em; }
+
+  .picks { display: grid; gap: 9px; }
+  .pick {
+    display: grid; grid-template-columns: 26px 1fr; gap: 10px;
+    align-items: baseline;
+    background: var(--panel-2);
+    border: 2px solid #2b3a5e;
+    border-radius: 3px;
+    padding: 11px 13px;
+    text-align: left; color: inherit; font: inherit;
+    cursor: pointer;
+  }
+  .pick:hover:not(:disabled) { border-color: var(--signal); }
+  .pick .key { color: var(--dim); font-weight: 700; }
+  .pick.miss { border-color: var(--hit); background: #2a1420; color: #a58a95; }
+  .pick.miss .key { color: var(--hit); }
+  .pick.right { border-color: var(--ok); background: #10301f; }
+  .pick.right .key { color: var(--ok); }
+  .pick:disabled { cursor: default; }
+
+  .say { margin-top: 13px; min-height: 26px; line-height: 1.8; }
+  .say .why {
+    display: block; margin-top: 8px; padding-left: 11px;
+    border-left: 3px solid #35476f; color: var(--dim); font-size: 13px;
+  }
+
+  /* ===== 一覧表 ===== */
+  table.board { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.board th {
+    text-align: left; color: var(--dim); font-weight: 400; font-size: 11px;
+    letter-spacing: .1em; border-bottom: 1px solid #2b3a5e; padding: 6px 8px;
+  }
+  table.board td { padding: 8px; border-bottom: 1px solid #1b2b48; vertical-align: top; }
+  table.board tr.self td { background: #16233f; }
+  table.board .rank { color: var(--dim); width: 34px; }
+  table.board .lvcell { color: var(--gold); font-weight: 700; white-space: nowrap; }
+
+  .hint { color: var(--dim); font-size: 12.5px; }
+  .flash { color: var(--gold); }
+  .warn { color: var(--hit); }
+  .center { text-align: center; }
+  .gap { margin-top: 14px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    background: var(--panel-2); border: 2px solid var(--signal);
+    color: var(--signal); padding: 8px 18px; border-radius: 3px;
+    font-size: 13px; letter-spacing: .06em; z-index: 100;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  #toast.on { opacity: 1; }
+
+  @media (max-width: 480px) {
+    #stage { padding: 10px 10px 34px; }
+    .frame { padding: 13px 14px; }
+    .pair { grid-template-columns: 1fr; }
+    .area { grid-template-columns: 44px 1fr; }
+    .area .mark { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ===== 入口 ===== -->
+  <section id="v-gate" class="view on">
+    <h1 class="logo">無線クエスト</h1>
+    <p class="tagline">RADIO QUEST</p>
+    <svg class="beacon" width="120" height="86" viewBox="0 0 120 86" aria-hidden="true">
+      <circle class="r1" cx="60" cy="62" r="18"></circle>
+      <circle class="r2" cx="60" cy="62" r="18"></circle>
+      <circle class="r3" cx="60" cy="62" r="18"></circle>
+      <path d="M60 14 L60 62 M60 62 L40 74 M60 62 L80 74" stroke="#eaf2ff" stroke-width="3" fill="none"></path>
+      <circle cx="60" cy="12" r="4" fill="#ffc94a"></circle>
+    </svg>
+
+    <div class="frame">
+      <div class="field">
+        <label class="lead" for="in-handle">ハンドル（コールサインでも可）</label>
+        <input id="in-handle" type="text" maxlength="16" placeholder="JA1ABC" autocomplete="off">
+      </div>
+      <button id="btn-enter" class="btn go wide" disabled>交信をはじめる</button>
+      <p id="gate-note" class="hint center gap">よみこみ中...</p>
+    </div>
+  </section>
+
+  <!-- ===== 基地局 ===== -->
+  <section id="v-base" class="view">
+    <div class="frame tight">
+      <div class="status" id="base-status"></div>
+    </div>
+
+    <div class="frame">
+      <h2>エリア</h2>
+      <div class="areas" id="area-list"></div>
+      <p class="hint gap">ボスに勝つと、そのジャンルのスキルを習得して次のエリアが開きます。</p>
+    </div>
+
+    <div class="frame">
+      <h2>スキル</h2>
+      <div id="skill-list"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" data-go="roster">みんなの状況</button>
+      <button class="btn" data-go="post">問題を投稿する</button>
+    </div>
+  </section>
+
+  <!-- ===== ルート ===== -->
+  <section id="v-route" class="view">
+    <div class="frame tight">
+      <div class="status" id="route-status"></div>
+    </div>
+
+    <div class="frame">
+      <h2 id="route-title">エリア</h2>
+      <div id="route-map"></div>
+      <p id="route-note" class="hint gap"></p>
+      <div class="btn-row gap">
+        <button id="btn-advance" class="btn go">すすむ</button>
+        <button class="btn quiet" data-go="base">基地局にもどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 交戦 ===== -->
+  <section id="v-battle" class="view">
+    <div class="frame tight">
+      <div class="status" id="fight-status"></div>
+    </div>
+
+    <div class="frame">
+      <div class="arena">
+        <div class="pop" id="pop"></div>
+        <div id="foe-art"></div>
+        <div class="foe-name" id="foe-name"></div>
+        <div class="meter gap" style="max-width:280px;margin:8px auto 0">
+          <div class="bar foe"><i id="foe-bar" style="width:100%"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="qgenre" id="q-genre"></div>
+      <div class="qbody" id="q-body"></div>
+      <div class="picks" id="q-picks"></div>
+      <div class="say" id="q-say"></div>
+      <div class="btn-row gap" id="q-after" style="display:none">
+        <button id="btn-next" class="btn go"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== みんなの状況 ===== -->
+  <section id="v-roster" class="view">
+    <div class="frame">
+      <h2>みんなの状況</h2>
+      <div id="roster-body"><p class="hint">よみこみ中...</p></div>
+      <div class="btn-row gap">
+        <button id="btn-reload-roster" class="btn quiet">最新にする</button>
+        <button class="btn quiet" data-go="base">もどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 投稿 ===== -->
+  <section id="v-post" class="view">
+    <div class="frame">
+      <h2>問題を投稿する</h2>
+      <p class="hint">採用されると、みんなの冒険に出てきます。投稿した時点で <b class="flash" id="post-exp">120</b> の経験値が入ります。</p>
+
+      <div class="pair gap">
+        <div class="field">
+          <label class="lead" for="in-area">ジャンル</label>
+          <select id="in-area"></select>
+        </div>
+        <div class="field">
+          <label class="lead" for="in-level">難易度</label>
+          <select id="in-level">
+            <option value="1">1 ・ やさしい</option>
+            <option value="2">2 ・ ふつう</option>
+            <option value="3">3 ・ むずかしい</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lead" for="in-text">問題文</label>
+        <textarea id="in-text" maxlength="300" placeholder="例：SWRが1.0のとき、どんな状態ですか。"></textarea>
+      </div>
+
+      <div id="choice-fields"></div>
+
+      <div class="field">
+        <label class="lead" for="in-note">解説（任意）</label>
+        <textarea id="in-note" maxlength="300" placeholder="答え合わせのときに出ます。"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-submit" class="btn go">投稿する</button>
+        <button class="btn quiet" data-go="base">もどる</button>
+      </div>
+      <p id="post-note" class="hint gap"></p>
+    </div>
+  </section>
+
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// =====================================================================
+//  無線クエスト — 画面側
+//
+//  作りの方針
+//   1. サーバーを呼ぶのは「起動時」「モンスター撃破時」「投稿時」「一覧更新時」だけ。
+//      1問ごとに通信しないので、部員が一斉に開いても順番待ちになりにくい。
+//   2. モンスターは画像ではなくSVGを組み立てて描く。配布するファイルは3つで済む。
+//   3. 4択は間違えても答え直せる。間違えるほど与えるダメージが減るだけで、
+//      「分からないまま先に進む」ことがないようにしている。
+// =====================================================================
+
+var el = function (id) { return document.getElementById(id); };
+var LETTER = ['A', 'B', 'C', 'D'];
+
+// ===== 進行中の状態 =====
+var game = {
+  online: false,
+  ready: false,
+  areas: [],
+  nodesPerArea: 6,
+  mobs: [],
+  questions: [],
+  rules: { expPerLevel: 50, postExp: 120, postLimit: 5 },
+  roster: [],
+  me: null,
+  hp: 0,
+  maxHp: 0,
+  usedIds: {},
+  route: null,     // いま見ているエリア
+  fight: null,     // 交戦中の情報
+  pendingLog: [],
+  sending: false
+};
+
+// ===== 数値まわり =====
+// レベルが上がると殴れる回数が減る＝先に進むほど1問の重みが増す、という設計。
+function maxHpFor(level) { return 40 + level * 8; }
+function powerFor(level) { return 16 + level * 4; }
+function levelFor(exp) { return Math.max(1, Math.floor(exp / game.rules.expPerLevel) + 1); }
+
+// 何回間違えたかで与えるダメージが落ちる
+function damageRate(misses) {
+  if (misses <= 0) return 1;
+  if (misses === 1) return 0.6;
+  if (misses === 2) return 0.35;
+  return 0.15;
+}
+
+// ノードごとの難易度。最後だけボス
+function tierOfNode(index) {
+  if (index >= game.nodesPerArea - 1) return 3;
+  return [1, 1, 2, 2, 3][index] || 1;
+}
+
+function foeStats(tier, isBoss) {
+  if (isBoss) return { hp: 160, atk: 12, exp: 90 };
+  return { hp: 30 + tier * 20, atk: 5 + tier * 2, exp: 10 + tier * 8 };
+}
+
+// ===== 画面切り替え =====
+function show(name) {
+  ['gate', 'base', 'route', 'battle', 'roster', 'post'].forEach(function (key) {
+    el('v-' + key).classList.toggle('on', key === name);
+  });
+  window.scrollTo(0, 0);
+}
+
+function esc(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+var toastTimer = null;
+function toast(text) {
+  var box = el('toast');
+  box.textContent = text;
+  box.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { box.classList.remove('on'); }, 2600);
+}
+
+// ===== モンスターの絵 =====
+// 形の種類ぶんだけ関数を用意して、色は所属エリアの色相から作る。
+function paint(hue) {
+  return {
+    body:  'hsl(' + hue + ',52%,44%)',
+    dark:  'hsl(' + hue + ',56%,26%)',
+    light: 'hsl(' + hue + ',62%,64%)'
+  };
+}
+
+var SHAPES = {
+  blob: function (c) {
+    return '<path d="M100 44c30 0 52 26 52 56 0 24-22 40-52 40s-52-16-52-40c0-30 22-56 52-56z" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M62 108c14 10 62 10 76 0" fill="none" stroke="' + c.dark + '" stroke-width="4"/>' +
+           eyes(82, 88) + eyes(118, 88);
+  },
+  ghost: function (c) {
+    return '<path d="M100 40c30 0 48 24 48 52v48l-16-12-16 12-16-12-16 12-16-12-16 12v-48c0-28 18-52 48-52z" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           eyes(84, 84) + eyes(116, 84) +
+           '<path d="M88 108c8 6 16 6 24 0" fill="none" stroke="' + c.dark + '" stroke-width="4"/>';
+  },
+  wisp: function (c) {
+    var out = '';
+    for (var i = 0; i < 4; i++) {
+      out += '<ellipse cx="100" cy="96" rx="' + (26 + i * 18) + '" ry="' + (18 + i * 12) +
+             '" fill="none" stroke="' + c.light + '" stroke-width="3" opacity="' + (0.85 - i * 0.18) + '"/>';
+    }
+    return out + '<circle cx="100" cy="96" r="18" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           eyes(93, 92, 3) + eyes(107, 92, 3);
+  },
+  bat: function (c) {
+    return '<path d="M100 70 L36 52l12 34-14 6 30 20 36-14z" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M100 70 L164 52l-12 34 14 6-30 20-36-14z" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<ellipse cx="100" cy="92" rx="22" ry="28" fill="' + c.dark + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           eyes(92, 84, 4) + eyes(108, 84, 4);
+  },
+  crystal: function (c) {
+    return '<path d="M100 34 L134 82 L100 152 L66 82z" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M100 34 L100 152" stroke="' + c.light + '" stroke-width="3"/>' +
+           '<path d="M66 82 L134 82" stroke="' + c.dark + '" stroke-width="3"/>' +
+           '<path d="M52 60 L34 96 M148 60 L166 96" stroke="' + c.light + '" stroke-width="5" stroke-linecap="round"/>' +
+           eyes(90, 92, 4) + eyes(110, 92, 4);
+  },
+  golem: function (c) {
+    return '<rect x="52" y="60" width="96" height="84" rx="6" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<rect x="66" y="36" width="68" height="34" rx="5" fill="' + c.dark + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<rect x="30" y="72" width="18" height="52" rx="4" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<rect x="152" y="72" width="18" height="52" rx="4" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M70 108h60" stroke="' + c.light + '" stroke-width="4"/>' +
+           eyes(84, 52, 4) + eyes(116, 52, 4);
+  },
+  tower: function (c) {
+    return '<path d="M100 22 L100 150" stroke="' + c.light + '" stroke-width="6"/>' +
+           '<path d="M64 150 L100 40 L136 150" fill="none" stroke="' + c.body + '" stroke-width="7"/>' +
+           '<path d="M78 116h44 M84 92h32 M90 68h20" stroke="' + c.dark + '" stroke-width="5"/>' +
+           '<circle cx="100" cy="20" r="8" fill="' + c.light + '"/>' +
+           eyes(88, 132, 5) + eyes(112, 132, 5);
+  },
+  dragon: function (c) {
+    return '<path d="M100 58 L28 34l18 46-20 12 40 26 34-18z" fill="' + c.dark + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M100 58 L172 34l-18 46 20 12-40 26-34-18z" fill="' + c.dark + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<ellipse cx="100" cy="104" rx="34" ry="44" fill="' + c.body + '" stroke="' + c.dark + '" stroke-width="4"/>' +
+           '<path d="M84 44 L92 20 L100 42 L110 18 L118 44z" fill="' + c.light + '" stroke="' + c.dark + '" stroke-width="3"/>' +
+           '<path d="M84 128c10 8 22 8 32 0" fill="none" stroke="' + c.dark + '" stroke-width="4"/>' +
+           eyes(88, 96, 6, '#ff5f6d') + eyes(112, 96, 6, '#ff5f6d');
+  }
+};
+
+function eyes(x, y, r, tint) {
+  return '<circle cx="' + x + '" cy="' + y + '" r="' + (r || 6) + '" fill="' + (tint || '#0b1220') + '"/>' +
+         '<circle cx="' + (x + 1.5) + '" cy="' + (y - 1.5) + '" r="' + ((r || 6) / 3) + '" fill="#ffffff"/>';
+}
+
+function foeArt(shape, hue, big) {
+  var size = big ? 210 : 176;
+  var draw = SHAPES[shape] || SHAPES.blob;
+  return '<svg class="foe-svg" id="foe-svg" width="' + size + '" height="' + size +
+         '" viewBox="0 0 200 176" aria-hidden="true">' + draw(paint(hue)) + '</svg>';
+}
+
+// ===== ステータス表示 =====
+function statusHtml() {
+  var me = game.me;
+  var nextAt = me.level * game.rules.expPerLevel;
+  var intoLevel = me.exp - (me.level - 1) * game.rules.expPerLevel;
+  var hpRatio = game.maxHp ? Math.max(0, game.hp) / game.maxHp : 0;
+
+  return '<span class="who">' + esc(me.handle) + '</span>' +
+    '<span class="lv">Lv ' + me.level + '</span>' +
+    '<div class="meter">' +
+      '<div class="cap"><span>HP</span><span>' + Math.max(0, game.hp) + ' / ' + game.maxHp + '</span></div>' +
+      '<div class="bar' + (hpRatio <= 0.3 ? ' low' : '') + '"><i style="width:' + (hpRatio * 100) + '%"></i></div>' +
+    '</div>' +
+    '<div class="meter">' +
+      '<div class="cap"><span>EXP</span><span>' + me.exp + ' / つぎ ' + nextAt + '</span></div>' +
+      '<div class="bar exp"><i style="width:' +
+        Math.min(100, (intoLevel / game.rules.expPerLevel) * 100) + '%"></i></div>' +
+    '</div>';
+}
+
+function paintStatus() {
+  ['base-status', 'route-status', 'fight-status'].forEach(function (id) {
+    el(id).innerHTML = statusHtml();
+  });
+}
+
+// ===== 基地局 =====
+function openBase() {
+  game.hp = game.maxHp;       // 基地局にもどると回復する
+  paintStatus();
+  paintAreas();
+  paintSkills();
+  show('base');
+  flushLog();
+}
+
+function areaUnlocked(index) {
+  if (index === 0) return true;
+  return game.me.skills.indexOf(game.areas[index - 1].skill) !== -1;
+}
+
+function paintAreas() {
+  var box = el('area-list');
+  box.innerHTML = '';
+
+  game.areas.forEach(function (area, index) {
+    var step = game.me.progress[area.key] || 0;
+    var cleared = step >= game.nodesPerArea;
+    var open = areaUnlocked(index);
+
+    var marks = '';
+    for (var i = 0; i < game.nodesPerArea; i++) {
+      marks += '<i class="' + (i === game.nodesPerArea - 1 ? 'boss ' : '') +
+               (i < step ? 'past' : '') + '"></i>';
+    }
+
+    var node = document.createElement('button');
+    node.className = 'area' + (open ? '' : ' locked') + (cleared ? ' done' : '');
+    node.disabled = !open;
+    node.innerHTML =
+      '<svg width="54" height="48" viewBox="0 0 200 176">' +
+        (SHAPES[area.shape] || SHAPES.blob)(paint(area.hue)) + '</svg>' +
+      '<div>' +
+        '<div class="name">' + esc(area.key) + '</div>' +
+        '<div class="sub">ボス ' + esc(area.boss) + '</div>' +
+        '<div class="track">' + marks + '</div>' +
+      '</div>' +
+      '<div class="mark">' + (cleared
+        ? '<span class="badge">' + esc(area.skill) + '</span>'
+        : (open ? '<span class="hint">' + step + ' / ' + game.nodesPerArea + '</span>'
+                : '<span class="hint">未開放</span>')) + '</div>';
+
+    if (open) node.addEventListener('click', function () { openRoute(index); });
+    box.appendChild(node);
+  });
+}
+
+function paintSkills() {
+  var box = el('skill-list');
+  if (!game.me.skills.length) {
+    box.innerHTML = '<p class="hint">まだスキルはありません。エリアのボスに勝つと手に入ります。</p>';
+    return;
+  }
+  box.innerHTML = game.areas.map(function (area) {
+    var got = game.me.skills.indexOf(area.skill) !== -1;
+    return '<span class="badge' + (got ? '' : ' plain') + '">' +
+      (got ? '' : '？ ') + esc(area.skill) + '</span>';
+  }).join('');
+}
+
+// ===== ルート =====
+function openRoute(index) {
+  game.route = index;
+  var area = game.areas[index];
+  var step = game.me.progress[area.key] || 0;
+  var cleared = step >= game.nodesPerArea;
+
+  el('route-title').textContent = area.key;
+
+  var cells = '';
+  for (var i = 0; i < game.nodesPerArea; i++) {
+    var boss = (i === game.nodesPerArea - 1);
+    var state = i < step ? 'past' : (i === step ? 'here' : 'ahead');
+    cells +=
+      '<div style="text-align:center;flex:0 0 auto;opacity:' +
+        (state === 'ahead' ? '.4' : '1') + '">' +
+      '<svg width="' + (boss ? 62 : 46) + '" height="' + (boss ? 56 : 42) + '" viewBox="0 0 200 176">' +
+        (boss ? (SHAPES[area.shape] || SHAPES.blob)(paint(area.hue))
+              : SHAPES.blob(paint(area.hue))) + '</svg>' +
+      '<div style="font-size:11px;color:' +
+        (state === 'past' ? 'var(--signal)' : (state === 'here' ? 'var(--gold)' : 'var(--dim)')) + '">' +
+        (state === 'past' ? '撃破' : (state === 'here' ? 'ここ' : '')) + '</div>' +
+      '</div>';
+  }
+  el('route-map').innerHTML =
+    '<div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:6px">' +
+    cells + '</div>';
+
+  el('route-note').innerHTML = cleared
+    ? 'このエリアは踏破ずみ。スキル「<b class="flash">' + esc(area.skill) + '</b>」を習得しています。もう一度挑んで経験値を稼ぐこともできます。'
+    : (step === game.nodesPerArea - 1
+        ? 'つぎは <b class="warn">' + esc(area.boss) + '</b>。勝てばスキル「' + esc(area.skill) + '」を習得します。'
+        : 'つぎの相手まで あと ' + (game.nodesPerArea - 1 - step) + ' 体でボスです。');
+
+  el('btn-advance').textContent = cleared ? 'もう一度いどむ' : 'すすむ';
+  paintStatus();
+  show('route');
+}
+
+// ===== 出題の選び方 =====
+function pickQuestion(areaKey, tier) {
+  var inArea = game.questions.filter(function (q) { return q.area === areaKey; });
+  if (!inArea.length) return null;
+
+  var fresh = inArea.filter(function (q) { return !game.usedIds[q.id]; });
+  if (!fresh.length) { game.usedIds = {}; fresh = inArea; }
+
+  var matched = fresh.filter(function (q) { return q.level === tier; });
+  var pool = matched.length ? matched : fresh;
+
+  var picked = pool[Math.floor(Math.random() * pool.length)];
+  game.usedIds[picked.id] = true;
+  return picked;
+}
+
+function pickMob(tier) {
+  var pool = game.mobs.filter(function (m) { return m.tier === tier; });
+  if (!pool.length) pool = game.mobs;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// ===== 交戦 =====
+function advance() {
+  var area = game.areas[game.route];
+  var step = game.me.progress[area.key] || 0;
+  var node = Math.min(step, game.nodesPerArea - 1);
+  var isBoss = (node === game.nodesPerArea - 1);
+  var tier = tierOfNode(node);
+
+  var question = pickQuestion(area.key, tier);
+  if (!question) { toast('このジャンルの問題がまだありません'); return; }
+
+  var stats = foeStats(tier, isBoss);
+  var mob = isBoss ? { name: area.boss, shape: area.shape } : pickMob(tier);
+
+  game.fight = {
+    area: area,
+    node: node,
+    isBoss: isBoss,
+    tier: tier,
+    name: mob.name,
+    shape: mob.shape,
+    hue: area.hue,
+    hp: stats.hp,
+    maxHp: stats.hp,
+    atk: stats.atk,
+    exp: stats.exp,
+    question: question,
+    misses: 0,
+    askedAt: Date.now(),
+    settled: false
+  };
+
+  el('foe-art').innerHTML = foeArt(mob.shape, area.hue, isBoss);
+  el('foe-name').innerHTML = esc(mob.name) +
+    '<span class="tier">' + (isBoss ? 'ボス' : '難易度 ' + tier) + '</span>';
+  el('foe-bar').style.width = '100%';
+  el('q-say').innerHTML = '<span class="flash">' + esc(mob.name) + ' が あらわれた！</span>';
+
+  drawQuestion(question);
+  paintStatus();
+  show('battle');
+}
+
+function drawQuestion(question) {
+  el('q-genre').textContent = '【' + question.area + '】難易度 ' + question.level;
+  el('q-body').innerHTML = esc(question.text) +
+    (question.fromPlayer && question.author
+      ? '<div class="qfrom">投稿：' + esc(question.author) + '</div>' : '');
+
+  var box = el('q-picks');
+  box.innerHTML = '';
+  question.choices.forEach(function (choice, i) {
+    var pick = document.createElement('button');
+    pick.className = 'pick';
+    pick.dataset.index = String(i);
+    pick.innerHTML = '<span class="key">' + LETTER[i] + '</span><span>' + esc(choice) + '</span>';
+    pick.addEventListener('click', function () { answer(i); });
+    box.appendChild(pick);
+  });
+
+  el('q-after').style.display = 'none';
+}
+
+function answer(index) {
+  var fight = game.fight;
+  if (!fight || fight.settled) return;
+
+  var question = fight.question;
+  var buttons = el('q-picks').querySelectorAll('.pick');
+  var chosen = buttons[index];
+  if (!chosen || chosen.disabled) return;
+
+  if (index !== question.answer) {
+    // 間違えても答え直せる。選んだものだけを閉じて、その場でダメージを受ける
+    fight.misses++;
+    chosen.classList.add('miss');
+    chosen.disabled = true;
+
+    game.hp = Math.max(0, game.hp - fight.atk);
+    popDamage('-' + fight.atk, 'var(--hit)');
+    paintStatus();
+
+    if (game.hp <= 0) { lose(); return; }
+
+    el('q-say').innerHTML = '<span class="warn">ちがう！ ' + esc(fight.name) +
+      ' の こうげき！ ' + fight.atk + ' のダメージ</span>' +
+      '<span class="why">もういちど えらべます。</span>';
+    return;
+  }
+
+  // 正解。間違えた回数ぶんだけ与えるダメージが落ちる
+  fight.settled = true;
+  chosen.classList.add('right');
+  for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+
+  var blow = Math.max(1, Math.round(powerFor(game.me.level) * damageRate(fight.misses)));
+  fight.hp = Math.max(0, fight.hp - blow);
+  el('foe-bar').style.width = ((fight.hp / fight.maxHp) * 100) + '%';
+
+  var art = el('foe-svg');
+  if (art) { art.classList.add('struck'); setTimeout(function () { art.classList.remove('struck'); }, 900); }
+  popDamage('-' + blow, 'var(--signal)');
+
+  game.pendingLog.push({
+    area: fight.area.key,
+    questionId: question.id,
+    misses: fight.misses,
+    seconds: (Date.now() - fight.askedAt) / 1000,
+    cleared: fight.hp <= 0
+  });
+  game.me.tries++;
+  if (fight.misses === 0) game.me.hits++;
+
+  var line = fight.misses === 0
+    ? '<span class="flash">一発正解！ ' + blow + ' のダメージ</span>'
+    : '正解。' + blow + ' のダメージ（' + fight.misses + '回まちがえたぶん、威力が落ちた）';
+  if (question.note) line += '<span class="why">' + esc(question.note) + '</span>';
+  el('q-say').innerHTML = line;
+
+  if (fight.hp <= 0) { setTimeout(win, 620); return; }
+
+  el('q-after').style.display = 'flex';
+  el('btn-next').textContent = 'つぎの問題へ';
+  el('btn-next').onclick = nextQuestion;
+}
+
+function nextQuestion() {
+  var fight = game.fight;
+  if (!fight) { openRoute(game.route); return; }
+
+  var question = pickQuestion(fight.area.key, fight.tier);
+  if (!question) { toast('出題できる問題が尽きました'); openRoute(game.route); return; }
+
+  fight.question = question;
+  fight.misses = 0;
+  fight.askedAt = Date.now();
+  fight.settled = false;
+  el('q-say').innerHTML = '';
+  drawQuestion(question);
+}
+
+function win() {
+  var fight = game.fight;
+  var art = el('foe-svg');
+  if (art) art.classList.add('gone');
+
+  game.me.exp += fight.exp;
+  game.me.defeats++;
+
+  var step = game.me.progress[fight.area.key] || 0;
+  if (fight.node >= step) game.me.progress[fight.area.key] = fight.node + 1;
+
+  var lines = '<span class="flash">' + esc(fight.name) + ' を たおした！ 経験値 +' + fight.exp + '</span>';
+
+  var grown = levelFor(game.me.exp);
+  if (grown > game.me.level) {
+    game.me.level = grown;
+    game.maxHp = maxHpFor(grown);
+    game.hp = game.maxHp;
+    lines += '<span class="why">レベルが ' + grown + ' に あがった！ HPが全回復した。</span>';
+  }
+
+  if (fight.isBoss && game.me.skills.indexOf(fight.area.skill) === -1) {
+    game.me.skills.push(fight.area.skill);
+    lines += '<span class="why">スキル「<b class="flash">' + esc(fight.area.skill) +
+             '</b>」を習得した！' +
+             (game.route + 1 < game.areas.length
+               ? ' 「' + esc(game.areas[game.route + 1].key) + '」へ進めるようになった。' : '') +
+             '</span>';
+  }
+
+  el('q-picks').innerHTML = '';
+  el('q-body').textContent = '';
+  el('q-genre').textContent = '';
+  el('q-say').innerHTML = lines;
+  el('q-after').style.display = 'flex';
+  el('btn-next').textContent = 'ルートにもどる';
+  el('btn-next').onclick = function () { openRoute(game.route); };
+
+  game.fight = null;
+  paintStatus();
+  pushProgress();
+}
+
+function lose() {
+  var fight = game.fight;
+  game.fight = null;
+
+  el('q-picks').innerHTML = '';
+  el('q-say').innerHTML = '<span class="warn">HPが 0 になった。基地局に撤退する。</span>' +
+    '<span class="why">経験値と、ここまで倒したぶんの進行はそのまま残ります。</span>';
+  el('q-after').style.display = 'flex';
+  el('btn-next').textContent = '基地局にもどる';
+  el('btn-next').onclick = openBase;
+
+  game.pendingLog.push({
+    area: fight.area.key,
+    questionId: fight.question.id,
+    misses: fight.misses,
+    seconds: (Date.now() - fight.askedAt) / 1000,
+    cleared: false
+  });
+  paintStatus();
+  pushProgress();
+}
+
+function popDamage(text, color) {
+  var pop = el('pop');
+  pop.textContent = text;
+  pop.style.color = color;
+  pop.classList.remove('show');
+  void pop.offsetWidth;
+  pop.classList.add('show');
+}
+
+// ===== サーバーとのやりとり =====
+var server = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
+
+function pushProgress() {
+  if (!server || !game.online || game.sending || !game.me) return;
+  game.sending = true;
+
+  var sending = game.pendingLog.slice(0, 100);
+  game.pendingLog = game.pendingLog.slice(100);
+
+  server
+    .withSuccessHandler(function (res) {
+      game.sending = false;
+      if (res && res.ok) {
+        if (res.me) applyMe(res.me);
+        toast('記録しました');
+      } else {
+        game.pendingLog = sending.concat(game.pendingLog);
+        toast('あとで保存します');
+      }
+    })
+    .withFailureHandler(function () {
+      game.sending = false;
+      game.pendingLog = sending.concat(game.pendingLog);
+      toast('あとで保存します');
+    })
+    .syncProgress({
+      handle: game.me.handle,
+      level: game.me.level,
+      exp: game.me.exp,
+      progress: game.me.progress,
+      skills: game.me.skills,
+      defeats: game.me.defeats,
+      hits: game.me.hits,
+      tries: game.me.tries,
+      log: sending
+    });
+}
+
+function flushLog() {
+  if (game.pendingLog.length) pushProgress();
+}
+
+function applyMe(saved) {
+  // サーバー側が持っている値のほうが進んでいることがあるので、大きいほうを採る
+  game.me.level = Math.max(game.me.level, saved.level || 1);
+  game.me.exp = Math.max(game.me.exp, saved.exp || 0);
+  game.me.posts = saved.posts || game.me.posts || 0;
+  (saved.skills || []).forEach(function (skill) {
+    if (game.me.skills.indexOf(skill) === -1) game.me.skills.push(skill);
+  });
+  Object.keys(saved.progress || {}).forEach(function (key) {
+    game.me.progress[key] = Math.max(game.me.progress[key] || 0, saved.progress[key]);
+  });
+  game.maxHp = maxHpFor(game.me.level);
+  game.hp = Math.min(game.hp || game.maxHp, game.maxHp);
+  paintStatus();
+}
+
+// ===== みんなの状況 =====
+function openRoster() {
+  show('roster');
+  drawRoster();
+  if (server && game.online) {
+    server.withSuccessHandler(function (res) {
+      if (res && res.ok) { game.roster = res.roster; drawRoster(); }
+    }).fetchRoster();
+  }
+}
+
+function drawRoster() {
+  var box = el('roster-body');
+  if (!game.roster.length) {
+    box.innerHTML = '<p class="hint">まだ誰も記録がありません。最初のひとりになりましょう。</p>';
+    return;
+  }
+
+  var rows = game.roster.map(function (entry, i) {
+    var mine = game.me && entry.handle === game.me.handle;
+    var badges = (entry.skills || []).map(function (skill) {
+      return '<span class="badge">' + esc(skill) + '</span>';
+    }).join('') || '<span class="hint">—</span>';
+
+    return '<tr' + (mine ? ' class="self"' : '') + '>' +
+      '<td class="rank">' + (i + 1) + '</td>' +
+      '<td>' + esc(entry.handle) + (mine ? ' <span class="hint">(あなた)</span>' : '') + '</td>' +
+      '<td class="lvcell">Lv ' + entry.level + '</td>' +
+      '<td class="hint">' + entry.exp + '</td>' +
+      '<td>' + badges + '</td>' +
+      '<td class="hint">' + (entry.posts || 0) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  box.innerHTML =
+    '<table class="board"><thead><tr>' +
+    '<th></th><th>ハンドル</th><th>レベル</th><th>EXP</th><th>スキル</th><th>投稿</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+// ===== 投稿 =====
+function buildPostForm() {
+  var areaBox = el('in-area');
+  areaBox.innerHTML = game.areas.map(function (area) {
+    return '<option value="' + esc(area.key) + '">' + esc(area.key) + '</option>';
+  }).join('');
+
+  el('post-exp').textContent = game.rules.postExp;
+
+  el('choice-fields').innerHTML = LETTER.map(function (letter) {
+    return '<div class="field">' +
+      '<label class="lead" for="in-c' + letter + '">選択肢 ' + letter +
+        ' <span style="margin-left:10px"><input type="radio" name="right" value="' + letter + '"' +
+        (letter === 'A' ? ' checked' : '') + '> これが正解</span></label>' +
+      '<input id="in-c' + letter + '" type="text" maxlength="120" autocomplete="off">' +
+      '</div>';
+  }).join('');
+}
+
+function submitPost() {
+  var note = el('post-note');
+  var draft = {
+    handle: game.me.handle,
+    area: el('in-area').value,
+    level: Number(el('in-level').value) || 1,
+    text: el('in-text').value.trim(),
+    note: el('in-note').value.trim(),
+    answer: (document.querySelector('input[name=right]:checked') || {}).value || 'A',
+    choices: {
+      a: el('in-cA').value.trim(),
+      b: el('in-cB').value.trim(),
+      c: el('in-cC').value.trim(),
+      d: el('in-cD').value.trim()
+    }
+  };
+
+  if (draft.text.length < 8) { note.innerHTML = '<span class="warn">問題文が短すぎます。</span>'; return; }
+  var filled = ['a', 'b', 'c', 'd'].every(function (key) { return draft.choices[key]; });
+  if (!filled) { note.innerHTML = '<span class="warn">選択肢を4つとも入れてください。</span>'; return; }
+
+  if (!server || !game.online) {
+    note.innerHTML = '<span class="warn">おためしモードでは投稿できません。</span>';
+    return;
+  }
+
+  el('btn-submit').disabled = true;
+  note.textContent = '送信中...';
+
+  server
+    .withSuccessHandler(function (res) {
+      el('btn-submit').disabled = false;
+      if (!res || !res.ok) {
+        note.innerHTML = '<span class="warn">' + esc((res && res.reason) || '投稿できませんでした') + '</span>';
+        return;
+      }
+      if (res.me) applyMe(res.me);
+      clearPostForm();
+      note.innerHTML = '<span class="flash">投稿しました。経験値 +' + res.gained + '</span>' +
+        '<br>' + (res.published
+          ? 'この問題はすぐに出題に混ざります。'
+          : '運営が承認すると、みんなの冒険に出てきます。');
+      paintStatus();
+    })
+    .withFailureHandler(function () {
+      el('btn-submit').disabled = false;
+      note.innerHTML = '<span class="warn">通信に失敗しました。</span>';
+    })
+    .submitQuestion(draft);
+}
+
+function clearPostForm() {
+  el('in-text').value = '';
+  el('in-note').value = '';
+  LETTER.forEach(function (letter) { el('in-c' + letter).value = ''; });
+}
+
+// ===== おためし用の問題 =====
+// サーバーにつながらないときでも画面を確認できるように、少しだけ持っておく。
+var DEMO_QUESTIONS = [
+  { id: 'D1', area: '電波の基礎', level: 1, text: '電波が真空中を伝わる速さは、およそどれくらいですか。',
+    choices: ['秒速約3万km', '秒速約30万km', '秒速約300万km', '秒速約3000万km'], answer: 1,
+    note: '光と同じ速さで、毎秒およそ30万kmです。' },
+  { id: 'D2', area: '電波の基礎', level: 2, text: '145MHz の電波の波長は、およそ何メートルですか。',
+    choices: ['約0.7m', '約2m', '約6m', '約20m'], answer: 1,
+    note: '波長[m] ≒ 300 ÷ 周波数[MHz]。' },
+  { id: 'D3', area: '電波の基礎', level: 3, text: '電力が2倍になったとき、およそ何dBの増加ですか。',
+    choices: ['約2dB', '約3dB', '約6dB', '約10dB'], answer: 1, note: '10×log10(2) ≒ 3dB。' },
+  { id: 'D4', area: '運用と通信術', level: 1, text: '誰にでも呼びかけるときに使う略号はどれですか。',
+    choices: ['CQ', 'SOS', 'QRT', 'DX'], answer: 0, note: '一般呼出の合図です。' },
+  { id: 'D5', area: '運用と通信術', level: 2, text: 'Q符号の「QRM」は何を表しますか。',
+    choices: ['他局からの混信', '自然雑音による混信', '出力を下げる', '交信を終える'], answer: 0,
+    note: '自然雑音による混信はQRNです。' },
+  { id: 'D6', area: 'アンテナ', level: 2, text: 'SWRが1.0のとき、どんな状態ですか。',
+    choices: ['整合が完全にとれている', 'まったく整合していない', '断線している', '出力がゼロ'], answer: 0,
+    note: '反射波がない状態です。' }
+];
+
+var DEMO_AREAS = [
+  { key: '電波の基礎',   boss: '電離層ドラゴン', skill: '伝搬解析', shape: 'dragon', hue: 205 },
+  { key: '運用と通信術', boss: '混信の亡霊',     skill: '交信術',   shape: 'ghost',  hue: 275 },
+  { key: 'アンテナ',     boss: '定在波のぬし',   skill: '空中線調整', shape: 'tower', hue: 150 }
+];
+
+var DEMO_MOBS = [
+  { name: 'ノイズスライム', shape: 'blob',  tier: 1 },
+  { name: 'フェージング',   shape: 'wisp',  tier: 2 },
+  { name: 'スプリアス',     shape: 'crystal', tier: 3 }
+];
+
+// ===== 起動 =====
+function boot() {
+  if (!server) {
+    game.online = false;
+    game.areas = DEMO_AREAS;
+    game.mobs = DEMO_MOBS;
+    game.questions = DEMO_QUESTIONS;
+    game.ready = true;
+    el('gate-note').textContent = 'おためしモード（記録は保存されません）';
+    el('btn-enter').disabled = false;
+    return;
+  }
+
+  server
+    .withSuccessHandler(function (res) {
+      if (!res || !res.ok) {
+        el('gate-note').innerHTML = '<span class="warn">' +
+          esc((res && res.reason) || 'よみこみに失敗しました') + '</span>';
+        return;
+      }
+      game.online = true;
+      game.areas = res.areas;
+      game.nodesPerArea = res.nodesPerArea;
+      game.mobs = res.mobs;
+      game.questions = res.questions;
+      game.rules = res.rules;
+      game.roster = res.roster || [];
+      game.ready = true;
+      el('gate-note').textContent = '問題 ' + res.questions.length + ' 問を よみこみました';
+      el('btn-enter').disabled = false;
+    })
+    .withFailureHandler(function () {
+      game.online = false;
+      game.areas = DEMO_AREAS;
+      game.mobs = DEMO_MOBS;
+      game.questions = DEMO_QUESTIONS;
+      game.ready = true;
+      el('gate-note').textContent = '通信できないため、おためしモードで あそべます';
+      el('btn-enter').disabled = false;
+    })
+    .bootstrap('');
+}
+
+function enter() {
+  var handle = el('in-handle').value.trim();
+  if (!handle) { el('gate-note').innerHTML = '<span class="warn">ハンドルを入れてください</span>'; return; }
+  if (!game.ready) return;
+
+  el('btn-enter').disabled = true;
+
+  if (!server || !game.online) {
+    startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+    return;
+  }
+
+  server
+    .withSuccessHandler(function (res) {
+      startWith((res && res.me) || { handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+    })
+    .withFailureHandler(function () {
+      startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+    })
+    .signIn(handle);
+}
+
+function startWith(me) {
+  me.progress = me.progress || {};
+  me.skills = me.skills || [];
+  game.me = me;
+  game.maxHp = maxHpFor(me.level);
+  game.hp = game.maxHp;
+
+  el('btn-enter').disabled = false;
+  buildPostForm();
+  openBase();
+  if (me.level > 1) toast('レベル ' + me.level + ' から再開');
+}
+
+// ===== つなぎこみ =====
+el('btn-enter').addEventListener('click', enter);
+el('in-handle').addEventListener('keydown', function (e) { if (e.key === 'Enter') enter(); });
+el('btn-advance').addEventListener('click', advance);
+el('btn-reload-roster').addEventListener('click', openRoster);
+el('btn-submit').addEventListener('click', submitPost);
+
+document.querySelectorAll('[data-go]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var to = button.dataset.go;
+    if (to === 'base') openBase();
+    else if (to === 'roster') openRoster();
+    else if (to === 'post') { show('post'); el('post-note').textContent = ''; }
+  });
+});
+
+// バトル中は 1〜4 キーでも答えられる
+document.addEventListener('keydown', function (e) {
+  if (!el('v-battle').classList.contains('on')) return;
+  var n = Number(e.key);
+  if (n >= 1 && n <= 4) {
+    var pick = el('q-picks').querySelector('.pick[data-index="' + (n - 1) + '"]');
+    if (pick && !pick.disabled) pick.click();
+  } else if (e.key === 'Enter' && el('q-after').style.display !== 'none') {
+    el('btn-next').click();
+  }
+});
+
+// タブを閉じるときに、たまった記録を取りこぼさない
+window.addEventListener('pagehide', flushLog);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') flushLog();
+});
+
+boot();
+</script>
+</body>
+</html>
