@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.0
+  Version 2.1
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -216,6 +216,20 @@
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 10px; }
   .legend span { display: flex; align-items: center; gap: 5px; }
   .legend b { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
+
+  /* ===== 確認メニュー ===== */
+  #ask {
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(4, 8, 18, .78);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  #ask[hidden] { display: none; }
+  .ask-box { width: min(400px, 100%); margin: 0; text-align: center; }
+  .ask-box h3 { margin: 0 0 4px; font-size: 16px; letter-spacing: .12em; color: var(--gold); }
+  .ask-box .chest-art { margin: 6px auto 10px; display: block; }
+  .ask-box p { margin: 0 0 16px; }
+  .ask-box .btn-row { justify-content: center; }
 
   /* ===== 制限時間 ===== */
   .clock { margin: 0 0 12px; }
@@ -503,6 +517,19 @@
     </div>
   </section>
 
+  <!-- ===== たからばこの確認 ===== -->
+  <div id="ask" hidden>
+    <div class="frame ask-box">
+      <h3 id="ask-title">たからばこ</h3>
+      <div id="ask-art"></div>
+      <p id="ask-text"></p>
+      <div class="btn-row">
+        <button id="ask-yes" class="btn go">あける</button>
+        <button id="ask-no" class="btn quiet">やめる</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 <div id="toast"></div>
 
@@ -574,13 +601,13 @@ function speedRate(msLeft) {
 // 出会う相手の強さ。道中は集めたアイテムが増えるほど手ごわくなる
 function tierFor(kind, held) {
   if (kind === 'boss') return 3;
-  if (kind === 'item') return 2;
+  if (kind === 'mimic') return 2;
   return held >= 2 ? 2 : 1;
 }
 
 function foeStats(tier, kind) {
   if (kind === 'boss') return { hp: 160, atk: 12, exp: 90 };
-  if (kind === 'item') return { hp: 40 + tier * 20, atk: 5 + tier * 2, exp: 16 + tier * 8 };
+  if (kind === 'mimic') return { hp: 40 + tier * 20, atk: 5 + tier * 2, exp: 16 + tier * 8 };
   return { hp: 30 + tier * 20, atk: 5 + tier * 2, exp: 10 + tier * 8 };
 }
 
@@ -673,6 +700,16 @@ var SHAPES = {
            '<path d="M78 116h44 M84 92h32 M90 68h20" stroke="' + c.dark + '" stroke-width="5"/>' +
            '<circle cx="100" cy="20" r="8" fill="' + c.light + '"/>' +
            eyes(88, 132, 5) + eyes(112, 132, 5);
+  },
+  chest: function (c) {
+    return '<path d="M40 96 L160 96 L160 152 L40 152 Z" fill="#8b5a2b" stroke="#2c1a0a" stroke-width="5"/>' +
+           '<path d="M40 96 A60 40 0 0 1 160 96 Z" fill="#a86a33" stroke="#2c1a0a" stroke-width="5"/>' +
+           '<rect x="40" y="104" width="120" height="14" fill="#ffc94a" stroke="#2c1a0a" stroke-width="3"/>' +
+           '<path d="M62 96 q10 26 22 0 q10 26 22 0 q10 26 22 0 q10 26 22 0" ' +
+             'fill="#ffffff" stroke="#2c1a0a" stroke-width="3"/>' +
+           '<path d="M74 62 q26 -18 52 0" fill="none" stroke="' + c.dark + '" stroke-width="6" stroke-linecap="round"/>' +
+           eyes(78, 74, 8, '#e63946') + eyes(122, 74, 8, '#e63946') +
+           '<path d="M52 150 l-12 18 M148 150 l12 18" stroke="#2c1a0a" stroke-width="5" stroke-linecap="round"/>';
   },
   dragon: function (c) {
     return '<path d="M100 58 L28 34l18 46-20 12 40 26 34-18z" fill="' + c.dark + '" stroke="' + c.dark + '" stroke-width="4"/>' +
@@ -846,23 +883,62 @@ function paintLegend(index) {
   var hue = game.areas[index].hue;
   var c = terrain(hue);
   el('map-legend').innerHTML =
+    '<span><b style="background:' + c.field + '"></b>平地（敵が出る）</span>' +
     '<span><b style="background:' + c.road + '"></b>道（安全）</span>' +
-    '<span><b style="background:' + c.field + '"></b>野（敵が出る）</span>' +
-    '<span><b style="background:' + c.wallTop + '"></b>かべ</span>' +
-    '<span><b style="background:var(--gold)"></b>アイテム</span>' +
+    '<span><b style="background:' + c.rockTop + '"></b>山</span>' +
+    '<span><b style="background:' + c.sea + ';border:1px solid ' + c.seaLine + '"></b>海</span>' +
+    '<span><b style="background:var(--gold)"></b>たからばこ</span>' +
     '<span><b style="background:var(--hit)"></b>ボス</span>';
 }
 
 // エリアの色相から地形の色をつくる。
-// かべ・野・道がひと目で見分けられるよう、明るさをはっきり離す。
+// 海・山・平地・道がひと目で見分けられるよう、明るさをはっきり離す。
 function terrain(hue) {
+  // 海は濃紺、陸は緑、道は砂色で固定する。エリアの色相は陸の色味を少し振るだけに使う。
+  // 大陸の形がひと目で分かることを、エリアごとの個性より優先している。
+  var tint = 104 + (((hue % 60) - 30) * 0.3);
   return {
-    wall:  'hsl(' + hue + ',26%,9%)',
-    wallTop: 'hsl(' + hue + ',22%,19%)',
-    road:  'hsl(' + hue + ',12%,52%)',
-    field: 'hsl(' + hue + ',38%,27%)',
-    tuft:  'hsl(' + hue + ',34%,40%)'
+    sea:     'hsl(213,62%,13%)',
+    seaLine: 'hsl(201,46%,33%)',
+    rock:    'hsl(28,10%,25%)',
+    rockTop: 'hsl(30,13%,46%)',
+    road:    'hsl(42,26%,58%)',
+    field:   'hsl(' + tint + ',34%,30%)',
+    tuft:    'hsl(' + tint + ',40%,46%)'
   };
+}
+
+// ===== キャラとたからばこの絵 =====
+// 主人公は人型の戦士。剣と盾を持たせて、1マスでもそれと分かる形にする。
+function warriorArt() {
+  return '<ellipse cx="17" cy="30.4" rx="8" ry="2.4" fill="rgba(0,0,0,.45)"/>' +
+    '<path d="M27.4 6.4V18" stroke="#e8eefb" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<path d="M25 18.4h4.8" stroke="#ffc94a" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<rect x="12.6" y="24" width="3.6" height="5.6" rx="1.2" fill="#26344f"/>' +
+    '<rect x="17.8" y="24" width="3.6" height="5.6" rx="1.2" fill="#26344f"/>' +
+    '<rect x="11.6" y="14.6" width="10.8" height="9.8" rx="1.4" fill="#2aa79b" stroke="#0e2b30" stroke-width="1.2"/>' +
+    '<path d="M11.6 19.2h10.8" stroke="#0e2b30" stroke-width="1.1"/>' +
+    '<path d="M6.4 14h5.6v5.8c0 1.9-1.3 3.2-2.8 3.6-1.5-.4-2.8-1.7-2.8-3.6z" ' +
+      'fill="#9fb3d1" stroke="#22314f" stroke-width="1.2"/>' +
+    '<circle cx="17" cy="10.4" r="4.6" fill="#f2cfa8" stroke="#0e2b30" stroke-width="1.1"/>' +
+    '<path d="M12.3 9.8a4.7 4.7 0 0 1 9.4 0z" fill="#b9c7de" stroke="#22314f" stroke-width="1.1"/>' +
+    '<path d="M17 5.4V3.4" stroke="#ffc94a" stroke-width="1.8" stroke-linecap="round"/>';
+}
+
+// たからばこ。開けたあとはふたを開いた形にして、済んだことが分かるようにする。
+function chestArt(opened, scale) {
+  var k = scale || 1;
+  var body = opened
+    ? '<path d="M8 13.5 26 13.5 24 8 10 8Z" fill="#6b4420" stroke="#2c1a0a" stroke-width="1.3"/>'
+    : '<path d="M8 17A9 6 0 0 1 26 17Z" fill="#a86a33" stroke="#2c1a0a" stroke-width="1.3"/>';
+  return '<g transform="scale(' + k + ')">' +
+    '<ellipse cx="17" cy="28.6" rx="9" ry="2.4" fill="rgba(0,0,0,.4)"/>' +
+    '<rect x="8" y="16.6" width="18" height="10.6" rx="1.6" fill="#8b5a2b" stroke="#2c1a0a" stroke-width="1.3"/>' +
+    body +
+    '<rect x="8" y="18.6" width="18" height="2.4" fill="#ffc94a" stroke="#2c1a0a" stroke-width="0.7"/>' +
+    (opened ? '' :
+      '<rect x="15.2" y="19" width="3.6" height="5" rx="0.9" fill="#ffc94a" stroke="#2c1a0a" stroke-width="1"/>') +
+    '</g>';
 }
 
 function drawMap() {
@@ -881,23 +957,25 @@ function drawMap() {
   for (var y = 0; y < grid.length; y++) {
     for (var x = 0; x < grid[y].length; x++) {
       var ch = tileAt(grid, x, y);
-      var fill = (ch === '#') ? c.wall : (ch === ',' ? c.field : c.road);
+      var fill = (ch === '~') ? c.sea : (ch === '#' ? c.rock : (ch === ',' ? c.field : c.road));
       cells += '<rect x="' + (x * TILE) + '" y="' + (y * TILE) + '" width="' + TILE +
                '" height="' + TILE + '" fill="' + fill + '" stroke="rgba(0,0,0,.25)" stroke-width="1"/>';
 
       var cx = x * TILE + TILE / 2;
       var cy = y * TILE + TILE / 2;
 
-      if (ch === '#') {
-        // かべは石を積んだ見た目にして、床とはっきり区別する
-        cells += '<rect x="' + (x * TILE + 3) + '" y="' + (y * TILE + 3) + '" width="' + (TILE - 6) +
-                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>' +
-                 '<rect x="' + (x * TILE + 3) + '" y="' + (y * TILE + TILE / 2 + 1) + '" width="' + (TILE / 2 - 5) +
-                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>' +
-                 '<rect x="' + (x * TILE + TILE / 2 + 2) + '" y="' + (y * TILE + TILE / 2 + 1) + '" width="' + (TILE / 2 - 5) +
-                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>';
+      if (ch === '~') {
+        // 海は波を2本引く
+        cells += '<path d="M' + (cx - 9) + ' ' + (cy - 3) + 'q4.5 -3 9 0 M' + (cx - 9) + ' ' + (cy + 4) +
+                 'q4.5 -3 9 0" stroke="' + c.seaLine + '" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+      } else if (ch === '#') {
+        // 山は三角に積んで、海や平地と見間違えないようにする
+        cells += '<path d="M' + (cx - 11) + ' ' + (cy + 9) + 'L' + (cx - 2) + ' ' + (cy - 8) +
+                 'L' + (cx + 7) + ' ' + (cy + 9) + 'Z" fill="' + c.rockTop + '" stroke="rgba(0,0,0,.4)" stroke-width="1"/>' +
+                 '<path d="M' + (cx - 1) + ' ' + (cy + 9) + 'L' + (cx + 6) + ' ' + (cy - 3) +
+                 'L' + (cx + 12) + ' ' + (cy + 9) + 'Z" fill="' + c.rockTop + '" stroke="rgba(0,0,0,.4)" stroke-width="1"/>';
       } else if (ch === ',') {
-        // 野は草を2本生やして、敵が出る場所だと分かるようにする
+        // 平地は草を生やして、敵が出る場所だと分かるようにする
         cells += '<path d="M' + (cx - 6) + ' ' + (cy + 5) + 'l3 -6 M' + (cx - 3) + ' ' + (cy + 5) + 'l1 -4' +
                  ' M' + (cx + 5) + ' ' + (cy + 6) + 'l-3 -6 M' + (cx + 2) + ' ' + (cy + 6) + 'l-1 -4"' +
                  ' stroke="' + c.tuft + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
@@ -905,13 +983,9 @@ function drawMap() {
 
       if (ch === '1' || ch === '2' || ch === '3') {
         var slot = Number(ch) - 1;
-        if (held & (1 << slot)) {
-          cells += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="rgba(255,201,74,.30)"/>';
-        } else {
-          cells += '<path d="M' + cx + ' ' + (cy - 9) + 'L' + (cx + 9) + ' ' + cy +
-                   'L' + cx + ' ' + (cy + 9) + 'L' + (cx - 9) + ' ' + cy + 'Z" ' +
-                   'fill="var(--gold)" stroke="#7a5a10" stroke-width="1.5"/>';
-        }
+        cells += '<g transform="translate(' + (x * TILE) + ',' + (y * TILE) + ')"' +
+                 ((held & (1 << slot)) ? ' opacity=".45"' : '') + '>' +
+                 chestArt((held & (1 << slot)) ? true : false, 1) + '</g>';
       } else if (ch === 'B') {
         var lit = cleared ? 'rgba(255,201,74,.35)' : (countItems(held) >= game.itemsPerArea ? 'var(--hit)' : '#4a2230');
         cells += '<rect x="' + (cx - 10) + '" y="' + (cy - 10) + '" width="20" height="20" rx="3" fill="' + lit + '"/>' +
@@ -923,14 +997,8 @@ function drawMap() {
     }
   }
 
-  var px = game.here.x * TILE;
-  var py = game.here.y * TILE;
-  var hero =
-    '<g class="walker" transform="translate(' + px + ',' + py + ')">' +
-      '<circle cx="' + (TILE / 2) + '" cy="' + (TILE / 2) + '" r="11" fill="var(--signal)" stroke="#0b1220" stroke-width="2"/>' +
-      '<circle cx="' + (TILE / 2 - 3.5) + '" cy="' + (TILE / 2 - 2) + '" r="1.8" fill="#0b1220"/>' +
-      '<circle cx="' + (TILE / 2 + 3.5) + '" cy="' + (TILE / 2 - 2) + '" r="1.8" fill="#0b1220"/>' +
-    '</g>';
+  var hero = '<g class="walker" transform="translate(' +
+    (game.here.x * TILE) + ',' + (game.here.y * TILE) + ')">' + warriorArt() + '</g>';
 
   el('map-canvas').innerHTML =
     '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(sheet.title) + 'の地図">' +
@@ -960,8 +1028,8 @@ function paintMapNote() {
   } else if (got >= game.itemsPerArea) {
     line = 'アイテムが3つそろった。<b class="warn">' + esc(area.boss) + '</b> の待つ B のマスへ進もう。';
   } else {
-    line = 'かがやくマスでアイテムの守り手と戦える。あと <b class="flash">' +
-           (game.itemsPerArea - got) + '</b> つでボスに挑める。';
+    line = 'たからばこ を さがそう。中には ばけものが ひそんでいることも ある。' +
+           'あと <b class="flash">' + (game.itemsPerArea - got) + '</b> つでボスに挑める。';
   }
 
   el('map-note').innerHTML = bag.join(' ') + '<div style="margin-top:8px">' + line + '</div>';
@@ -978,7 +1046,7 @@ function walk(dir) {
   var ny = game.here.y + delta[1];
   var ch = tileAt(sheet.grid, nx, ny);
 
-  if (ch === '#') return;
+  if (ch === '#' || ch === '~') return;   // 山と海は通れない
 
   var area = game.areas[game.area];
   var held = heldIn(area.key);
@@ -1007,7 +1075,7 @@ function arriveAt(ch) {
 
   if (ch === '1' || ch === '2' || ch === '3') {
     var slot = Number(ch) - 1;
-    if (!(held & (1 << slot))) { startBattle('item', slot); return; }
+    if (!(held & (1 << slot))) askChest(slot);
     return;
   }
 
@@ -1019,6 +1087,64 @@ function arriveAt(ch) {
 
   // 野原だけ敵が出る。歩き出してすぐは出さない
   if (ch === ',' && game.steps > 2 && Math.random() < 0.24) startBattle('random', -1);
+}
+
+// ===== たからばこ =====
+// 踏んだだけでは開かない。開けるかどうかを一度たずねる。
+// mimics に入っている番号の箱は、開けると中ボスに化ける。
+
+function askChest(slot) {
+  var sheet = sheetFor(game.area);
+  var name = sheet.items[slot] || ('たからばこ' + (slot + 1));
+
+  el('ask-art').innerHTML =
+    '<svg class="chest-art" width="76" height="76" viewBox="0 0 34 34">' + chestArt(false, 1) + '</svg>';
+  el('ask-title').textContent = 'たからばこ';
+  el('ask-text').innerHTML = 'たからばこ が おちている。<br>開けてみますか？';
+  el('ask-yes').textContent = 'あける';
+
+  showAsk(function () { openChest(slot, name); });
+}
+
+function openChest(slot, name) {
+  var sheet = sheetFor(game.area);
+  var mimics = sheet.mimics || [];
+
+  if (mimics.indexOf(slot) !== -1) {
+    toast('たからばこ が おそいかかってきた！');
+    startBattle('mimic', slot);
+    return;
+  }
+  takeItem(slot, name, 'たからばこ を あけた！');
+}
+
+// アイテムを手に入れたときの共通処理。中ボスを倒したときもここを通る。
+function takeItem(slot, name, headline) {
+  var area = game.areas[game.area];
+  var held = heldIn(area.key) | (1 << slot);
+  game.me.progress[area.key] = held;
+  var got = countItems(held);
+
+  drawMap();
+  paintStatus();
+  pushProgress();
+
+  toast(headline + ' ' + name + ' （' + got + '/' + game.itemsPerArea + '）');
+  return got;
+}
+
+// ===== 確認メニュー =====
+var askYes = null;
+
+function showAsk(onYes) {
+  askYes = onYes;
+  el('ask').hidden = false;
+  el('ask-yes').focus();
+}
+
+function hideAsk() {
+  el('ask').hidden = true;
+  askYes = null;
 }
 
 // ===== 出題の選び方 =====
@@ -1059,7 +1185,7 @@ function startBattle(kind, slot) {
   var stats = foeStats(tier, kind);
   var mob;
   if (kind === 'boss') mob = { name: area.boss, shape: area.shape };
-  else if (kind === 'item') mob = { name: (sheet.items[slot] || 'アイテム') + 'の守り手', shape: pickMob(tier).shape };
+  else if (kind === 'mimic') mob = { name: (sheet.items[slot] || 'たからばこ') + 'の化け箱', shape: 'chest' };
   else mob = pickMob(tier);
 
   game.fight = {
@@ -1068,7 +1194,7 @@ function startBattle(kind, slot) {
     slot: slot,
     tier: tier,
     name: mob.name,
-    prize: kind === 'item' ? (sheet.items[slot] || ('アイテム' + (slot + 1))) : '',
+    prize: kind === 'mimic' ? (sheet.items[slot] || ('アイテム' + (slot + 1))) : '',
     hp: stats.hp,
     maxHp: stats.hp,
     atk: stats.atk,
@@ -1085,7 +1211,7 @@ function startBattle(kind, slot) {
     '<span class="tier">' + (kind === 'boss' ? 'ボス' : '難易度 ' + tier) + '</span>';
   el('foe-bar').style.width = '100%';
   el('q-say').innerHTML = '<span class="' + (kind === 'boss' ? 'warn' : 'flash') + '">' +
-    esc(mob.name) + ' が あらわれた！</span>';
+    esc(mob.name) + (kind === 'mimic' ? ' が たからばこ から とびだした！' : ' が あらわれた！') + '</span>';
 
   askQuestion(question);
   paintStatus();
@@ -1284,8 +1410,8 @@ function win() {
 
   var lines = '<span class="flash">' + esc(fight.name) + ' を たおした！ 経験値 +' + fight.exp + '</span>';
 
-  // アイテムの守り手を倒したら、そのアイテムが手に入る
-  if (fight.kind === 'item') {
+  // 化け箱を倒したら、中身のアイテムが手に入る
+  if (fight.kind === 'mimic') {
     var held = heldIn(fight.area.key) | (1 << fight.slot);
     game.me.progress[fight.area.key] = held;
     var got = countItems(held);
@@ -1562,49 +1688,56 @@ var DEMO_AREAS = [
 
 var DEMO_MAPS = {
   '電波の基礎': {
-    title: '電離層のそら',
+    title: 'オーストラリア大陸',
     grid: [
-      '#############',
-      '#S...,,,...1#',
-      '#.###,,,###.#',
-      '#.,,,,,,,,,.#',
-      '#2,,,##B##,,#',
-      '#.,,,,,,,,,.#',
-      '#.###,,,###.#',
-      '#...,,,,,..3#',
-      '#############'
+      '~~~~~~~~~~~~~',
+      '~~~~,,1,,~~~~',
+      '~~,,,,#,,,,~~',
+      '~S,,,,,,,,,,~',
+      '~,,,#,B,#,,,~',
+      '~,,,,,,,,,3,~',
+      '~~,,,,,,,,,~~',
+      '~~~,2,,,,,~~~',
+      '~~~~~~~~~~~~~'
     ],
-    items: ['波長のものさし', '電離層のかけら', '伝搬図']
+    items: ['波長のものさし', '電離層のかけら', '伝搬図'],
+    mimics: [1]
   },
   '運用と通信術': {
-    title: 'こうしん所',
+    title: 'アフリカ大陸',
     grid: [
-      '#############',
-      '#S.........,#',
-      '#,#######,#,#',
-      '#,,,,1,,,,#,#',
-      '#,####,,##,,#',
-      '#,,,,#B#,,,,#',
-      '#,###,#,###,#',
-      '#2,,,,,,,,,3#',
-      '#############'
+      '~~~~~~~~~~~~~~~',
+      '~~,,,,,,,,,1,~~',
+      '~,S,,,,,,,,,,,~',
+      '~,,,,,#,,,,,,,~',
+      '~~,,,,,,,#,,,~~',
+      '~~~,2,,,,,,,~~~',
+      '~~~,,#,,,,,~~~~',
+      '~~~~,,,#,,~~~~~',
+      '~~~~,,,3,~~~~~~',
+      '~~~~~,B,~~~~~~~',
+      '~~~~~~~~~~~~~~~'
     ],
-    items: ['Q符号帳', 'フォネティック表', 'ログ帳']
+    items: ['Q符号帳', 'フォネティック表', 'ログ帳'],
+    mimics: [1]
   },
   'アンテナ': {
-    title: 'アンテナ山',
+    title: '南アメリカ大陸',
     grid: [
-      '#############',
-      '#S,,#,,,#,,,#',
-      '#,,,#,1,#,,,#',
-      '#,#,,,,,,,#,#',
-      '#,#,##B##,#,#',
-      '#,,,,#,#,,,,#',
-      '#2##,,,,,##3#',
-      '#,,,,,,,,,,,#',
-      '#############'
+      '~~~~~~~~~~~~~~~~~',
+      '~~,S,,,,,,,,,,,~~',
+      '~,,,,,,,,,,,,,1,~',
+      '~,,,#,,,,,,,,,,,~',
+      '~~,,,#,,,,,,,,,~~',
+      '~~~,,#,,,,,,,,~~~',
+      '~~~~,,#,,,,2,~~~~',
+      '~~~~~,#,,,,,~~~~~',
+      '~~~~~,3,,,,~~~~~~',
+      '~~~~~~,B,,~~~~~~~',
+      '~~~~~~~~~~~~~~~~~'
     ],
-    items: ['SWR計', '同軸ケーブル', 'エレメント']
+    items: ['SWR計', '同軸ケーブル', 'エレメント'],
+    mimics: [0, 2]
   }
 };
 
@@ -1698,6 +1831,13 @@ function startWith(me) {
 // ===== つなぎこみ =====
 el('btn-enter').addEventListener('click', enter);
 el('in-handle').addEventListener('keydown', function (e) { if (e.key === 'Enter') enter(); });
+el('ask-yes').addEventListener('click', function () {
+  var run = askYes;
+  hideAsk();
+  if (run) run();
+});
+el('ask-no').addEventListener('click', hideAsk);
+
 document.querySelectorAll('.pad button[data-step]').forEach(function (button) {
   button.addEventListener('click', function () { walk(button.dataset.step); });
 });
@@ -1715,6 +1855,12 @@ document.querySelectorAll('[data-go]').forEach(function (button) {
 
 // 地図では矢印キーとWASDで歩き、バトル中は 1〜4 キーで答えられる
 document.addEventListener('keydown', function (e) {
+  if (!el('ask').hidden) {
+    if (e.key === 'Enter') { e.preventDefault(); el('ask-yes').click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); el('ask-no').click(); }
+    return;
+  }
+
   if (el('v-map').classList.contains('on')) {
     var dir = STEP_KEYS[e.key];
     if (dir) { e.preventDefault(); walk(dir); }
