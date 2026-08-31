@@ -1,6 +1,6 @@
 /*
   無線クエスト2
-  Version 2.2
+  Version 2.3
 */
 
 // ===== シート定義 =====
@@ -41,6 +41,7 @@ const AREAS = [
   { key: '運用と通信術', boss: '混信の亡霊',     skill: '交信術',     shape: 'ghost',   hue: 275 },
   { key: 'アンテナ',     boss: '定在波のぬし',   skill: '空中線調整', shape: 'tower',   hue: 150 },
   { key: '無線工学',     boss: '発振の魔人',     skill: '回路設計',   shape: 'crystal', hue: 35  },
+  { key: 'IoT無線とLTE-M', boss: 'テール電流の魔', skill: '低消費電力設計', shape: 'wisp', hue: 320 },
   { key: '電波法規',     boss: '条文の守護者',   skill: '法令遵守',   shape: 'golem',   hue: 0   }
 ];
 
