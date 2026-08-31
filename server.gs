@@ -1,6 +1,6 @@
 /*
-  無線クエスト
-  Version 1.0
+  無線クエスト2
+  Version 2.0
 */
 
 // ===== シート定義 =====
@@ -68,14 +68,14 @@ const DEFAULT_CONF = [
 
 function doGet() {
   return HtmlService.createTemplateFromFile('musen').evaluate()
-    .setTitle('無線クエスト')
+    .setTitle('無線クエスト2')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /** スプレッドシートを開いたときに出る運営用メニュー。 */
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('無線クエスト')
+  SpreadsheetApp.getUi().createMenu('無線クエスト2')
     .addItem('シートを準備する', 'setupSheets')
     .addItem('選択した投稿を承認する', 'approveSelected')
     .addItem('選択した投稿を却下する', 'rejectSelected')
