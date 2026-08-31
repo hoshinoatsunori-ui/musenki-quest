@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.1
+  Version 2.2
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -280,6 +280,15 @@
 
   .foe-name { font-weight: 700; letter-spacing: .12em; margin-top: 6px; }
   .foe-name .tier { color: var(--dim); font-size: 12px; font-weight: 400; margin-left: 8px; }
+  .foe-name .weak {
+    font-size: 11.5px; font-weight: 400; color: var(--dim);
+    letter-spacing: .06em; margin-top: 3px;
+  }
+  .foe-name .weak.known { color: var(--gold); }
+  .say .combo {
+    display: inline-block; margin-left: 10px; color: var(--gold);
+    font-weight: 700; letter-spacing: .08em;
+  }
 
   .pop {
     position: absolute; left: 50%; top: 34%;
@@ -400,9 +409,17 @@
       <div id="skill-list"></div>
     </div>
 
+    <div class="frame">
+      <h2>そうび</h2>
+      <div id="gear-list"></div>
+    </div>
+
     <div class="btn-row">
       <button class="btn" data-go="roster">みんなの状況</button>
+      <button class="btn" data-go="raid">週替わりレイド</button>
+      <button class="btn" data-go="insight">じぶんの弱点</button>
       <button class="btn" data-go="post">問題を投稿する</button>
+      <button class="btn" data-go="mine">投稿のせいせき</button>
     </div>
   </section>
 
@@ -468,8 +485,13 @@
       <div class="qbody" id="q-body"></div>
       <div class="picks" id="q-picks"></div>
       <div class="say" id="q-say"></div>
+      <div class="btn-row gap">
+        <button id="btn-replay" class="btn quiet" style="display:none">♪ もう一度きく</button>
+        <button id="btn-cell" class="btn quiet" style="display:none">電池をつかう</button>
+      </div>
       <div class="btn-row gap" id="q-after" style="display:none">
         <button id="btn-next" class="btn go"></button>
+        <button id="btn-flee" class="btn quiet" style="display:none">はなれる</button>
       </div>
     </div>
   </section>
@@ -478,9 +500,57 @@
   <section id="v-roster" class="view">
     <div class="frame">
       <h2>みんなの状況</h2>
+      <div class="btn-row" style="margin-bottom:12px">
+        <button id="tab-total" class="btn quiet">通算</button>
+        <button id="tab-week" class="btn quiet">今週</button>
+      </div>
       <div id="roster-body"><p class="hint">よみこみ中...</p></div>
       <div class="btn-row gap">
         <button id="btn-reload-roster" class="btn quiet">最新にする</button>
+        <button class="btn quiet" data-go="base">もどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== じぶんの弱点 ===== -->
+  <section id="v-insight" class="view">
+    <div class="frame">
+      <h2>じぶんの弱点</h2>
+      <p class="hint">交信ログから、ジャンルごとの成績を集計しています。一発正解の割合が低い順です。</p>
+      <div id="insight-body" class="gap"><p class="hint">よみこみ中...</p></div>
+      <div class="btn-row gap">
+        <button id="btn-reload-insight" class="btn quiet">最新にする</button>
+        <button class="btn quiet" data-go="base">もどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 投稿のせいせき ===== -->
+  <section id="v-mine" class="view">
+    <div class="frame">
+      <h2>投稿のせいせき</h2>
+      <p class="hint">自分が投稿した問題が、何回出題されて どれくらい正解されたかです。
+        出題されるたびに経験値が入り、この画面を開いたときに受け取れます。</p>
+      <div id="mine-body" class="gap"><p class="hint">よみこみ中...</p></div>
+      <div class="btn-row gap">
+        <button id="btn-reload-mine" class="btn quiet">最新にする</button>
+        <button class="btn quiet" data-go="base">もどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 週替わりレイド ===== -->
+  <section id="v-raid" class="view">
+    <div class="frame tight">
+      <div class="status" id="raid-status"></div>
+    </div>
+
+    <div class="frame">
+      <h2>週替わりレイド</h2>
+      <div id="raid-body"><p class="hint">よみこみ中...</p></div>
+      <div class="btn-row gap">
+        <button id="btn-raid-go" class="btn go">いどむ</button>
+        <button id="btn-reload-raid" class="btn quiet">最新にする</button>
         <button class="btn quiet" data-go="base">もどる</button>
       </div>
     </div>
@@ -569,12 +639,16 @@ var game = {
   itemsPerArea: 3,
   mobs: [],
   questions: [],
-  rules: { expPerLevel: 50, postExp: 120, postLimit: 5, timeLimit: 20 },
+  rules: { expPerLevel: 50, postExp: 120, postLimit: 5, timeLimit: 20, cellCap: 3 },
   roster: [],
   me: null,
   hp: 0,
   maxHp: 0,
   usedIds: {},
+  combo: 0,        // 一発正解の連続回数
+  occupied: {},    // 敵に取り返された電波塔（そのセッションのあいだだけ）
+  raid: null,      // 今週の協力レイド
+  raidDealt: 0,    // レイドでまだ送っていないダメージ
   area: null,      // いま歩いているエリアの番号
   here: null,      // 地図上のいまいる場所 {x, y}
   steps: 0,        // そのエリアで歩いた歩数
@@ -589,8 +663,35 @@ var ALL_ITEMS = 7;   // アイテム3つぶんのビットがすべて立った�
 
 // ===== 数値まわり =====
 // レベルが上がると殴れる回数が減る＝先に進むほど1問の重みが増す、という設計。
-function maxHpFor(level) { return 40 + level * 8; }
-function powerFor(level) { return 16 + level * 4; }
+function maxHpFor(level) { return 40 + level * 8 + gear().hp; }
+function powerFor(level) { return 16 + level * 4 + gear().atk; }
+
+// ===== そうび =====
+// 集めたアイテムはそのまま装備になる。何を持っているかで能力が伸びる。
+// ひとつめ＝攻撃、ふたつめ＝制限時間、みっつめ＝最大HP、とエリアをまたいで役割をそろえている。
+var GEAR_ROLES = [
+  { slot: 0, label: '攻撃力', per: 4, key: 'atk' },
+  { slot: 1, label: '制限時間', per: 2, key: 'time' },
+  { slot: 2, label: '最大HP', per: 10, key: 'hp' }
+];
+
+function gear() {
+  var sum = { atk: 0, time: 0, hp: 0 };
+  if (!game.me) return sum;
+  game.areas.forEach(function (area) {
+    var held = game.me.progress[area.key] || 0;
+    GEAR_ROLES.forEach(function (role) {
+      if (held & (1 << role.slot)) sum[role.key] += role.per;
+    });
+  });
+  return sum;
+}
+
+function timeLimitNow() { return game.rules.timeLimit + gear().time; }
+
+// ===== 連続正解 =====
+// 一発正解が続くほど威力が上がる。まちがえるか時間切れで途切れる。
+function comboRate() { return 1 + Math.min(0.5, game.combo * 0.1); }
 function levelFor(exp) { return Math.max(1, Math.floor(exp / game.rules.expPerLevel) + 1); }
 
 // 何回間違えたかで与えるダメージが落ちる
@@ -603,19 +704,21 @@ function damageRate(misses) {
 
 // 早く答えるほど大きなダメージ。時間いっぱい使っても半分は入る
 function speedRate(msLeft) {
-  var full = game.rules.timeLimit * 1000;
+  var full = timeLimitNow() * 1000;
   if (!full) return 1;
   return 0.5 + 0.5 * Math.max(0, Math.min(1, msLeft / full));
 }
 
 // 出会う相手の強さ。道中は集めたアイテムが増えるほど手ごわくなる
 function tierFor(kind, held) {
-  if (kind === 'boss') return 3;
+  if (kind === 'boss' || kind === 'retake' || kind === 'raid') return 3;
   if (kind === 'mimic') return 2;
   return held >= 2 ? 2 : 1;
 }
 
 function foeStats(tier, kind) {
+  if (kind === 'raid') return { hp: 999999, atk: 14, exp: 0 };
+  if (kind === 'retake') return { hp: 200, atk: 14, exp: 120 };
   if (kind === 'boss') return { hp: 160, atk: 12, exp: 90 };
   if (kind === 'mimic') return { hp: 40 + tier * 20, atk: 5 + tier * 2, exp: 16 + tier * 8 };
   return { hp: 30 + tier * 20, atk: 5 + tier * 2, exp: 10 + tier * 8 };
@@ -632,7 +735,7 @@ function heldIn(areaKey) { return game.me.progress[areaKey] || 0; }
 
 // ===== 画面切り替え =====
 function show(name) {
-  ['gate', 'base', 'map', 'battle', 'roster', 'post'].forEach(function (key) {
+  ['gate', 'base', 'map', 'battle', 'roster', 'post', 'insight', 'mine', 'raid'].forEach(function (key) {
     el('v-' + key).classList.toggle('on', key === name);
   });
   window.scrollTo(0, 0);
@@ -764,7 +867,7 @@ function statusHtml() {
 }
 
 function paintStatus() {
-  ['base-status', 'map-status', 'fight-status'].forEach(function (id) {
+  ['base-status', 'map-status', 'fight-status', 'raid-status'].forEach(function (id) {
     el(id).innerHTML = statusHtml();
   });
 }
@@ -773,13 +876,30 @@ function paintStatus() {
 function openBase() {
   stopClock();
   game.fight = null;
+  game.combo = 0;
+  flushRaid();
+  retakeTowers();
+  game.maxHp = maxHpFor(game.me.level);
   game.hp = game.maxHp;       // 基地局にもどると回復する
   paintStatus();
   paintAreas();
   paintSkills();
+  paintGear();
   show('base');
   flushLog();
 }
+
+// 制圧した電波塔は、ときどき敵に取り返される。奪還すると経験値になるので、
+// 終わったエリアにも戻る理由が残る。
+function retakeTowers() {
+  game.areas.forEach(function (area) {
+    if (game.me.skills.indexOf(area.skill) === -1) return;   // まだ倒していない
+    if (game.occupied[area.key]) return;                     // すでに取られている
+    if (Math.random() < 0.22) game.occupied[area.key] = true;
+  });
+}
+
+function towerTaken(areaKey) { return !!game.occupied[areaKey]; }
 
 function areaUnlocked(index) {
   if (index === 0) return true;
@@ -801,8 +921,10 @@ function paintAreas() {
     for (var i = 0; i < game.itemsPerArea; i++) {
       marks += '<i class="' + ((held & (1 << i)) ? 'held' : '') + '"></i>';
     }
-    marks += '<span class="boss-mark ' + (cleared ? 'done' : (got >= game.itemsPerArea ? 'ready' : '')) + '">' +
-      (cleared ? '電波塔 制圧' : (got >= game.itemsPerArea ? '電波塔にいどめる' : '電波塔')) + '</span>';
+    var taken = cleared && towerTaken(area.key);
+    marks += '<span class="boss-mark ' + (taken ? 'ready' : (cleared ? 'done' : (got >= game.itemsPerArea ? 'ready' : ''))) + '">' +
+      (taken ? '電波塔 うばわれた！'
+             : (cleared ? '電波塔 制圧' : (got >= game.itemsPerArea ? '電波塔にいどめる' : '電波塔'))) + '</span>';
 
     var node = document.createElement('button');
     node.className = 'area' + (open ? '' : ' locked') + (cleared ? ' done' : '');
@@ -1021,7 +1143,8 @@ function drawMap() {
                  ((held & (1 << slot)) ? ' opacity=".45"' : '') + '>' +
                  chestArt((held & (1 << slot)) ? true : false, 1) + '</g>';
       } else if (ch === 'B') {
-        var mood = cleared ? 'cleared' : (countItems(held) >= game.itemsPerArea ? 'ready' : 'locked');
+        var mood = towerTaken(area.key) ? 'ready'
+                 : (cleared ? 'cleared' : (countItems(held) >= game.itemsPerArea ? 'ready' : 'locked'));
         cells += '<g transform="translate(' + (x * TILE) + ',' + (y * TILE) + ')">' +
                  towerArt(mood) + '</g>';
       } else if (ch === 'S') {
@@ -1085,7 +1208,7 @@ function walk(dir) {
   var area = game.areas[game.area];
   var held = heldIn(area.key);
 
-  // アイテムが3つそろうまで、ボスのマスには入れない
+  // アイテムが3つそろうまで、電波塔には入れない
   if (ch === 'B' && countItems(held) < game.itemsPerArea &&
       game.me.skills.indexOf(area.skill) === -1) {
     toast('電波塔の扉は かたく閉ざされている');
@@ -1115,12 +1238,118 @@ function arriveAt(ch) {
 
   if (ch === 'B') {
     if (game.me.skills.indexOf(area.skill) === -1) { startBattle('boss', -1); return; }
+    if (towerTaken(area.key)) { startBattle('retake', -1); return; }
     toast('電波塔は 静まりかえっている');
+    return;
+  }
+
+  // 上陸地点にもどると休める
+  if (ch === 'S') {
+    if (game.hp < game.maxHp) {
+      game.hp = game.maxHp;
+      paintStatus();
+      toast('上陸地点で ひと休みした。HPが 全回復');
+    }
     return;
   }
 
   // 野原だけ敵が出る。歩き出してすぐは出さない
   if (ch === ',' && game.steps > 2 && Math.random() < 0.24) startBattle('random', -1);
+}
+
+// ===== 音のミニ問題 =====
+// 4択のままだが、耳と符号をつかう。無線ならではの題材なので、
+// 問題シートに書けない種類の出題をここで補う。
+
+var MORSE = {
+  A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....',
+  I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.', O: '---', P: '.--.',
+  Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-',
+  Y: '-.--', Z: '--..'
+};
+
+var PHONETIC = {
+  A: 'Alfa', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot',
+  G: 'Golf', H: 'Hotel', I: 'India', J: 'Juliett', K: 'Kilo', L: 'Lima',
+  M: 'Mike', N: 'November', O: 'Oscar', P: 'Papa', Q: 'Quebec', R: 'Romeo',
+  S: 'Sierra', T: 'Tango', U: 'Uniform', V: 'Victor', W: 'Whiskey',
+  X: 'X-ray', Y: 'Yankee', Z: 'Zulu'
+};
+
+var LETTERS = Object.keys(MORSE);
+
+function shuffle(list) {
+  var out = list.slice(0);
+  for (var i = out.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = out[i]; out[i] = out[j]; out[j] = t;
+  }
+  return out;
+}
+
+function pickLetters(n, must) {
+  var pool = shuffle(LETTERS.filter(function (c) { return c !== must; })).slice(0, n - 1);
+  return shuffle(pool.concat([must]));
+}
+
+// 符号を鳴らす。音のファイルは持たず、その場で作る。
+var beeper = null;
+function playMorse(code) {
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!beeper) beeper = new AC();
+    if (beeper.state === 'suspended') beeper.resume();
+
+    var unit = 0.09;
+    var at = beeper.currentTime + 0.15;
+    for (var i = 0; i < code.length; i++) {
+      var len = code.charAt(i) === '-' ? unit * 3 : unit;
+      var osc = beeper.createOscillator();
+      var vol = beeper.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 700;
+      vol.gain.setValueAtTime(0.0001, at);
+      vol.gain.exponentialRampToValueAtTime(0.22, at + 0.008);
+      vol.gain.setValueAtTime(0.22, at + len - 0.008);
+      vol.gain.exponentialRampToValueAtTime(0.0001, at + len);
+      osc.connect(vol); vol.connect(beeper.destination);
+      osc.start(at); osc.stop(at + len + 0.01);
+      at += len + unit;
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+function makeMorseQuestion(area) {
+  var answer = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+  var choices = pickLetters(4, answer);
+  return {
+    id: 'MORSE-' + answer,
+    area: area,
+    level: 2,
+    kind: 'morse',
+    code: MORSE[answer],
+    text: '聞こえたモールス符号は どの文字ですか。',
+    choices: choices.map(function (c) { return c + '（' + MORSE[c] + '）'; }),
+    answer: choices.indexOf(answer),
+    note: answer + ' は ' + MORSE[answer] + ' です。'
+  };
+}
+
+function makePhoneticQuestion(area) {
+  var answer = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+  var choices = pickLetters(4, answer);
+  return {
+    id: 'PHON-' + answer,
+    area: area,
+    level: 1,
+    kind: 'phonetic',
+    text: 'フォネティックコードで「' + answer + '」は どう読みますか。',
+    choices: choices.map(function (c) { return PHONETIC[c]; }),
+    answer: choices.indexOf(answer),
+    note: answer + ' は ' + PHONETIC[answer] + '。ITUで決められた読み方です。'
+  };
 }
 
 // ===== たからばこ =====
@@ -1184,6 +1413,11 @@ function hideAsk() {
 // ===== 出題の選び方 =====
 
 function pickQuestion(areaKey, tier) {
+  // ときどき、耳をつかう問題を混ぜる
+  var roll = Math.random();
+  if (roll < 0.09) return makeMorseQuestion(areaKey);
+  if (roll < 0.16) return makePhoneticQuestion(areaKey);
+
   var inArea = game.questions.filter(function (q) { return q.area === areaKey; });
   if (!inArea.length) return null;
 
@@ -1218,14 +1452,19 @@ function startBattle(kind, slot) {
 
   var stats = foeStats(tier, kind);
   var mob;
-  if (kind === 'boss') mob = { name: area.boss, shape: area.shape };
+  if (kind === 'boss' || kind === 'retake') mob = { name: area.boss, shape: area.shape };
   else if (kind === 'mimic') mob = { name: (sheet.items[slot] || 'たからばこ') + 'の化け箱', shape: 'chest' };
   else mob = pickMob(tier);
+
+  // 相手の弱点。そのジャンルのスキルを持っていれば、攻撃が通りやすくなる
+  var weak = game.areas[Math.floor(Math.random() * game.areas.length)];
 
   game.fight = {
     area: area,
     kind: kind,
     slot: slot,
+    weak: weak.key,
+    weakSkill: weak.skill,
     tier: tier,
     name: mob.name,
     prize: kind === 'mimic' ? (sheet.items[slot] || ('アイテム' + (slot + 1))) : '',
@@ -1241,11 +1480,15 @@ function startBattle(kind, slot) {
   };
 
   el('foe-art').innerHTML = foeArt(mob.shape, area.hue, kind === 'boss');
+  var weakHit = game.me.skills.indexOf(weak.skill) !== -1;
   el('foe-name').innerHTML = esc(mob.name) +
-    '<span class="tier">' + (kind === 'boss' ? 'ボス' : '難易度 ' + tier) + '</span>';
+    '<span class="tier">' + (kind === 'boss' ? 'ボス' : '難易度 ' + tier) + '</span>' +
+    '<div class="weak' + (weakHit ? ' known' : '') + '">弱点：' + esc(weak.key) +
+      (weakHit ? '（スキル所持 ×1.25）' : '（スキル未取得）') + '</div>';
   el('foe-bar').style.width = '100%';
   var appear = kind === 'boss' ? ' が 電波塔のてっぺんで まちかまえていた！'
-             : (kind === 'mimic' ? ' が たからばこ から とびだした！' : ' が あらわれた！');
+             : (kind === 'retake' ? ' が 電波塔を のっとっている！ 取りかえせ！'
+             : (kind === 'mimic' ? ' が たからばこ から とびだした！' : ' が あらわれた！'));
   el('q-say').innerHTML = '<span class="' + (kind === 'boss' ? 'warn' : 'flash') + '">' +
     esc(mob.name) + appear + '</span>';
 
@@ -1274,7 +1517,7 @@ function stopClock() {
 function msLeft() {
   var fight = game.fight;
   if (!fight || !fight.askedAt) return 0;
-  return Math.max(0, game.rules.timeLimit * 1000 - (Date.now() - fight.askedAt));
+  return Math.max(0, timeLimitNow() * 1000 - (Date.now() - fight.askedAt));
 }
 
 function paintClock() {
@@ -1282,7 +1525,7 @@ function paintClock() {
   if (!fight) return;
 
   var left = msLeft();
-  var full = game.rules.timeLimit * 1000;
+  var full = timeLimitNow() * 1000;
   var ratio = full ? left / full : 0;
   var box = el('clock');
 
@@ -1299,6 +1542,7 @@ function paintClock() {
 function timeUp() {
   var fight = game.fight;
   fight.timedOut = true;
+  game.combo = 0;
   stopClock();
 
   game.hp = Math.max(0, game.hp - fight.atk);
@@ -1317,7 +1561,36 @@ function askQuestion(question) {
   game.fight.misses = 0;
   game.fight.settled = false;
   drawQuestion(question);
+
+  // モールスの問題は、押せば何度でも鳴らし直せる
+  var replay = el('btn-replay');
+  replay.style.display = (question.kind === 'morse') ? 'inline-block' : 'none';
+  if (question.kind === 'morse') playMorse(question.code);
+
+  paintCellButton();
   startClock();
+}
+
+// ===== 予備バッテリー =====
+// 戦闘中に1つ使うとHPが戻る。モンスターを倒したときにときどき拾う。
+function paintCellButton() {
+  var button = el('btn-cell');
+  var have = (game.me && game.me.cells) || 0;
+  var usable = !!game.fight && have > 0 && game.hp < game.maxHp;
+  button.style.display = game.fight ? 'inline-block' : 'none';
+  button.disabled = !usable;
+  button.textContent = '電池をつかう（' + have + '）';
+}
+
+function useCell() {
+  if (!game.fight || !game.me.cells || game.hp >= game.maxHp) return;
+  game.me.cells--;
+  var back = Math.max(1, Math.round(game.maxHp * 0.4));
+  game.hp = Math.min(game.maxHp, game.hp + back);
+  popDamage('+' + back, 'var(--ok)');
+  paintStatus();
+  paintCellButton();
+  toast('予備バッテリーで HP が ' + back + ' もどった');
 }
 
 function drawQuestion(question) {
@@ -1352,6 +1625,7 @@ function answer(index) {
   if (index !== question.answer) {
     // 間違えても答え直せる。選んだものだけを閉じて、その場でダメージを受ける
     fight.misses++;
+    game.combo = 0;
     chosen.classList.add('miss');
     chosen.disabled = true;
 
@@ -1376,7 +1650,18 @@ function answer(index) {
   var left = fight.timedOut ? 0 : msLeft();
   var speed = speedRate(left);
   var spent = (Date.now() - fight.askedAt) / 1000;
-  var blow = Math.max(1, Math.round(powerFor(game.me.level) * speed * damageRate(fight.misses)));
+  var clean = (fight.misses === 0 && !fight.timedOut);
+
+  // 一発正解ならコンボが伸び、そうでなければ切れる
+  var comboBefore = game.combo;
+  game.combo = clean ? game.combo + 1 : 0;
+
+  var weakOn = game.me.skills.indexOf(fight.weakSkill) !== -1;
+  var weakMul = weakOn ? 1.25 : 1;
+  var comboMul = 1 + Math.min(0.5, comboBefore * 0.1);
+
+  var blow = Math.max(1, Math.round(
+    powerFor(game.me.level) * speed * damageRate(fight.misses) * comboMul * weakMul));
 
   fight.hp = Math.max(0, fight.hp - blow);
   el('foe-bar').style.width = ((fight.hp / fight.maxHp) * 100) + '%';
@@ -1393,20 +1678,33 @@ function answer(index) {
     cleared: fight.hp <= 0
   });
   game.me.tries++;
-  if (fight.misses === 0 && !fight.timedOut) game.me.hits++;
+  if (clean) game.me.hits++;
 
   var why = [];
   why.push(fight.timedOut
     ? '時間切れ ×0.5'
     : spent.toFixed(1) + '秒 ×' + speed.toFixed(2));
   if (fight.misses) why.push(fight.misses + '回まちがえ ×' + damageRate(fight.misses));
+  if (comboMul > 1) why.push(comboBefore + '連続 ×' + comboMul.toFixed(1));
+  if (weakOn) why.push('弱点 ×1.25');
 
-  var head = (fight.misses === 0 && !fight.timedOut && speed >= 0.9)
+  var head = (clean && speed >= 0.9)
     ? '<span class="flash">かいしんの一撃！ ' + blow + ' のダメージ</span>'
     : '正解！ ' + blow + ' のダメージ';
+  if (game.combo >= 2) head += '<span class="combo">' + game.combo + ' れんぞく正解！</span>';
   var line = head + '<span class="why">' + esc(why.join(' / ')) + '</span>';
   if (question.note) line += '<span class="why">' + esc(question.note) + '</span>';
   el('q-say').innerHTML = line;
+
+  if (fight.kind === 'raid') {
+    game.raidDealt += blow;
+    if (fight.hp <= 0) { setTimeout(endRaidRun, 620); return; }
+    el('q-after').style.display = 'flex';
+    el('btn-flee').style.display = 'inline-block';
+    el('btn-next').textContent = 'つぎの問題へ';
+    el('btn-next').onclick = nextQuestion;
+    return;
+  }
 
   if (fight.hp <= 0) { setTimeout(win, 620); return; }
 
@@ -1419,6 +1717,9 @@ function nextQuestion() {
   var fight = game.fight;
   if (!fight) { backToMap(); return; }
 
+  // レイドは全ジャンルから出す。ふだんのエリアより広く問われる
+  if (fight.kind === 'raid') fight.area = game.areas[Math.floor(Math.random() * game.areas.length)];
+
   var question = pickQuestion(fight.area.key, fight.tier);
   if (!question) { toast('出題できる問題が尽きました'); backToMap(); return; }
 
@@ -1426,9 +1727,35 @@ function nextQuestion() {
   askQuestion(question);
 }
 
+function endRaidRun() {
+  if (!game.me) return;
+  var dealt = game.raidDealt;
+  stopClock();
+  game.fight = null;
+  game.combo = 0;
+  el('btn-cell').style.display = 'none';
+  el('btn-replay').style.display = 'none';
+  el('btn-flee').style.display = 'none';
+
+  el('q-picks').innerHTML = '';
+  el('q-body').textContent = '';
+  el('q-genre').textContent = '';
+  el('q-say').innerHTML = '<span class="flash">レイドから もどった。あたえたダメージ ' + dealt + '</span>' +
+    '<span class="why">みんなのダメージと合わせて集計されます。</span>';
+  el('q-after').style.display = 'flex';
+  el('btn-next').textContent = 'レイド画面へ';
+  el('btn-next').onclick = function () { flushRaid(); openRaid(); };
+
+  flushRaid();
+  paintStatus();
+}
+
 function backToMap() {
   stopClock();
   game.fight = null;
+  el('btn-cell').style.display = 'none';
+  el('btn-replay').style.display = 'none';
+  el('btn-flee').style.display = 'none';
   drawMap();
   paintStatus();
   show('map');
@@ -1436,6 +1763,7 @@ function backToMap() {
 
 function win() {
   var fight = game.fight;
+  if (!fight) return;   // 決着待ちのあいだに画面を離れていた
   stopClock();
 
   var art = el('foe-svg');
@@ -1445,6 +1773,13 @@ function win() {
   game.me.defeats++;
 
   var lines = '<span class="flash">' + esc(fight.name) + ' を たおした！ 経験値 +' + fight.exp + '</span>';
+
+  // ときどき予備バッテリーを落とす
+  var cap = game.rules.cellCap || 3;
+  if ((game.me.cells || 0) < cap && Math.random() < 0.28) {
+    game.me.cells = (game.me.cells || 0) + 1;
+    lines += '<span class="why">予備バッテリー を ひろった（' + game.me.cells + '/' + cap + '）</span>';
+  }
 
   // 化け箱を倒したら、中身のアイテムが手に入る
   if (fight.kind === 'mimic') {
@@ -1464,6 +1799,11 @@ function win() {
     game.maxHp = maxHpFor(grown);
     game.hp = game.maxHp;
     lines += '<span class="why">レベルが ' + grown + ' に あがった！ HPが全回復した。</span>';
+  }
+
+  if (fight.kind === 'retake') {
+    delete game.occupied[fight.area.key];
+    lines += '<span class="why">電波塔を <b class="flash">取りかえした！</b></span>';
   }
 
   if (fight.kind === 'boss' && game.me.skills.indexOf(fight.area.skill) === -1) {
@@ -1490,7 +1830,24 @@ function win() {
 
 function lose() {
   var fight = game.fight;
+  if (!fight) return;   // 同上
   stopClock();
+  game.combo = 0;
+
+  if (fight.kind === 'raid') {
+    game.fight = null;
+    game.hp = game.maxHp;
+    el('q-picks').innerHTML = '';
+    el('q-say').innerHTML = '<span class="warn">力つきた。あたえたダメージ ' + game.raidDealt + ' は 記録される。</span>';
+    el('q-after').style.display = 'flex';
+    el('btn-flee').style.display = 'none';
+    el('btn-next').textContent = 'レイド画面へ';
+    el('btn-next').onclick = function () { flushRaid(); openRaid(); };
+    flushRaid();
+    paintStatus();
+    return;
+  }
+
   game.fight = null;
 
   el('q-picks').innerHTML = '';
@@ -1550,6 +1907,7 @@ function pushProgress() {
       handle: game.me.handle,
       level: game.me.level,
       exp: game.me.exp,
+      cells: game.me.cells || 0,
       progress: game.me.progress,
       skills: game.me.skills,
       defeats: game.me.defeats,
@@ -1568,6 +1926,7 @@ function applyMe(saved) {
   game.me.level = Math.max(game.me.level, saved.level || 1);
   game.me.exp = Math.max(game.me.exp, saved.exp || 0);
   game.me.posts = saved.posts || game.me.posts || 0;
+  if (typeof saved.cells === 'number') game.me.cells = saved.cells;
   (saved.skills || []).forEach(function (skill) {
     if (game.me.skills.indexOf(skill) === -1) game.me.skills.push(skill);
   });
@@ -1577,6 +1936,195 @@ function applyMe(saved) {
   game.maxHp = maxHpFor(game.me.level);
   game.hp = Math.min(game.hp || game.maxHp, game.maxHp);
   paintStatus();
+}
+
+// ===== そうび =====
+function paintGear() {
+  var sum = gear();
+  var lines = GEAR_ROLES.map(function (role) {
+    var held = [];
+    game.areas.forEach(function (area) {
+      var bits = game.me.progress[area.key] || 0;
+      var sheet = game.maps[area.key];
+      if ((bits & (1 << role.slot)) && sheet && sheet.items) held.push(sheet.items[role.slot]);
+    });
+    var total = role.key === 'atk' ? sum.atk : (role.key === 'time' ? sum.time : sum.hp);
+    var unit = role.key === 'time' ? '秒' : '';
+    return '<div style="margin-bottom:8px">' +
+      '<b class="flash">' + role.label + ' +' + total + unit + '</b> ' +
+      '<span class="hint">（' + role.label + 'をのばす そうび：' +
+      (held.length ? held.map(esc).join('、') : 'まだ無い') + '）</span></div>';
+  }).join('');
+
+  var cells = (game.me.cells || 0);
+  lines += '<div class="hint" style="margin-top:10px">予備バッテリー ' + cells +
+           ' / ' + (game.rules.cellCap || 3) + '（戦闘中に使うとHPが4割もどります）</div>';
+  el('gear-list').innerHTML = lines;
+}
+
+// ===== じぶんの弱点 =====
+function openInsight() {
+  show('insight');
+  if (!server || !game.online) {
+    el('insight-body').innerHTML = '<p class="hint">おためしモードでは集計できません。</p>';
+    return;
+  }
+  el('insight-body').innerHTML = '<p class="hint">よみこみ中...</p>';
+  server.withSuccessHandler(function (res) {
+    if (!res || !res.ok || !res.rows.length) {
+      el('insight-body').innerHTML = '<p class="hint">まだ集計できる交信ログがありません。</p>';
+      return;
+    }
+    var rows = res.rows.map(function (row, i) {
+      var tone = row.cleanRate >= 80 ? 'var(--ok)' : (row.cleanRate >= 50 ? 'var(--gold)' : 'var(--hit)');
+      return '<tr>' +
+        '<td class="rank">' + (i + 1) + '</td>' +
+        '<td>' + esc(row.area) + '</td>' +
+        '<td style="color:' + tone + ';font-weight:700">' + row.cleanRate + '%</td>' +
+        '<td class="hint">' + row.asked + '問</td>' +
+        '<td class="hint">誤答 ' + row.avgMiss + '</td>' +
+        '<td class="hint">' + row.avgSeconds + '秒</td>' +
+        '</tr>';
+    }).join('');
+    el('insight-body').innerHTML =
+      '<table class="board"><thead><tr><th></th><th>ジャンル</th><th>一発正解</th>' +
+      '<th>出題</th><th>平均誤答</th><th>平均時間</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p class="hint gap">上にあるジャンルほど苦手です。そのエリアに戻って鍛え直しましょう。</p>';
+  }).withFailureHandler(function () {
+    el('insight-body').innerHTML = '<p class="warn">通信に失敗しました。</p>';
+  }).getInsights(game.me.handle);
+}
+
+// ===== 投稿のせいせき =====
+function openMine() {
+  show('mine');
+  if (!server || !game.online) {
+    el('mine-body').innerHTML = '<p class="hint">おためしモードでは集計できません。</p>';
+    return;
+  }
+  el('mine-body').innerHTML = '<p class="hint">よみこみ中...</p>';
+  server.withSuccessHandler(function (res) {
+    if (!res || !res.ok) {
+      el('mine-body').innerHTML = '<p class="warn">' + esc((res && res.reason) || '読み込めませんでした') + '</p>';
+      return;
+    }
+    if (res.me) applyMe(res.me);
+    if (res.gained > 0) toast('投稿ボーナス 経験値 +' + res.gained);
+
+    if (!res.rows.length) {
+      el('mine-body').innerHTML = '<p class="hint">まだ投稿がありません。「問題を投稿する」から出してみましょう。</p>';
+      return;
+    }
+    var rows = res.rows.map(function (row) {
+      return '<tr>' +
+        '<td>' + esc(row.text.slice(0, 34)) + (row.text.length > 34 ? '…' : '') + '</td>' +
+        '<td class="hint">' + esc(row.state) + '</td>' +
+        '<td class="lvcell">' + row.asked + '回</td>' +
+        '<td class="hint">' + (row.cleanRate === null ? '—' : row.cleanRate + '%') + '</td>' +
+        '</tr>';
+    }).join('');
+    el('mine-body').innerHTML =
+      '<div class="flash" style="margin-bottom:8px">これまでの出題 ' + res.served + ' 回' +
+        (res.gained > 0 ? '（経験値 +' + res.gained + ' を受け取りました）' : '') + '</div>' +
+      '<table class="board"><thead><tr><th>問題</th><th>状態</th><th>出題</th><th>一発正解</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>';
+  }).withFailureHandler(function () {
+    el('mine-body').innerHTML = '<p class="warn">通信に失敗しました。</p>';
+  }).getMyQuestions(game.me.handle);
+}
+
+// ===== 週替わりレイド =====
+// 週ごとに1体の大物を、みんなで削る。与えたダメージは合算される。
+function openRaid() {
+  show('raid');
+  paintStatus();
+  drawRaid();
+  if (!server || !game.online) return;
+  server.withSuccessHandler(function (res) {
+    if (res && res.ok) { game.raid = res; drawRaid(); }
+  }).getRaid(game.me.handle);
+}
+
+function drawRaid() {
+  var raid = game.raid;
+  if (!raid || !raid.ok) {
+    el('raid-body').innerHTML = '<p class="hint">' +
+      (game.online ? 'よみこみ中...' : 'おためしモードでは参加できません。') + '</p>';
+    el('btn-raid-go').disabled = true;
+    return;
+  }
+
+  var ratio = raid.maxHp ? Math.max(0, raid.hp) / raid.maxHp : 0;
+  var board = (raid.board || []).map(function (row, i) {
+    var mine = row.handle === game.me.handle;
+    return '<tr' + (mine ? ' class="self"' : '') + '><td class="rank">' + (i + 1) + '</td>' +
+      '<td>' + esc(row.handle) + (mine ? ' <span class="hint">(あなた)</span>' : '') + '</td>' +
+      '<td class="lvcell">' + row.damage + '</td></tr>';
+  }).join('');
+
+  el('raid-body').innerHTML =
+    '<div class="arena" style="padding:10px 0 4px">' +
+      foeArt(raid.shape, 275, true) +
+      '<div class="foe-name">' + esc(raid.name) +
+        '<span class="tier">' + esc(raid.week) + '</span></div>' +
+    '</div>' +
+    '<div class="meter gap" style="max-width:320px;margin:8px auto 14px">' +
+      '<div class="cap"><span>のこりHP</span><span>' + Math.max(0, raid.hp) + ' / ' + raid.maxHp + '</span></div>' +
+      '<div class="bar foe"><i style="width:' + (ratio * 100) + '%"></i></div>' +
+    '</div>' +
+    (raid.down
+      ? '<p class="flash center">今週の ' + esc(raid.name) + ' は たおれた！ みんなの勝ちです。</p>'
+      : '<p class="hint center">あなたの貢献 ' + raid.mine + ' ダメージ</p>') +
+    (board ? '<table class="board gap"><thead><tr><th></th><th>ハンドル</th><th>ダメージ</th></tr></thead>' +
+             '<tbody>' + board + '</tbody></table>' : '');
+
+  el('btn-raid-go').disabled = !!raid.down || !game.online;
+  el('btn-raid-go').textContent = raid.down ? '討伐ずみ' : 'いどむ';
+}
+
+function startRaid() {
+  var raid = game.raid;
+  if (!raid || !raid.ok || raid.down) return;
+
+  var area = game.areas[Math.floor(Math.random() * game.areas.length)];
+  var question = pickQuestion(area.key, 3);
+  if (!question) { toast('出題できる問題がありません'); return; }
+
+  var stats = foeStats(3, 'raid');
+  var weak = game.areas[Math.floor(Math.random() * game.areas.length)];
+
+  game.fight = {
+    area: area, kind: 'raid', slot: -1, tier: 3,
+    weak: weak.key, weakSkill: weak.skill,
+    name: raid.name, prize: '',
+    hp: Math.max(1, raid.hp), maxHp: raid.maxHp,
+    atk: stats.atk, exp: 0,
+    question: null, misses: 0, timedOut: false, askedAt: 0, settled: false
+  };
+  game.raidDealt = 0;
+
+  el('foe-art').innerHTML = foeArt(raid.shape, 275, true);
+  el('foe-name').innerHTML = esc(raid.name) + '<span class="tier">レイド</span>' +
+    '<div class="weak' + (game.me.skills.indexOf(weak.skill) !== -1 ? ' known' : '') + '">弱点：' +
+    esc(weak.key) + '</div>';
+  el('foe-bar').style.width = ((game.fight.hp / raid.maxHp) * 100) + '%';
+  el('q-say').innerHTML = '<span class="warn">' + esc(raid.name) + ' に いどむ！ みんなで削ろう。</span>';
+
+  askQuestion(question);
+  paintStatus();
+  show('battle');
+}
+
+// レイドで与えたぶんをサーバーに持ち寄る
+function flushRaid() {
+  if (!server || !game.online || !game.raidDealt) return;
+  var send = game.raidDealt;
+  game.raidDealt = 0;
+  server.withSuccessHandler(function (res) {
+    if (res && res.ok && res.raid) { game.raid = res.raid; }
+  }).withFailureHandler(function () {
+    game.raidDealt += send;    // 送れなかったぶんは戻して次に回す
+  }).hitRaid({ handle: game.me.handle, damage: send });
 }
 
 // ===== みんなの状況 =====
@@ -1590,14 +2138,30 @@ function openRoster() {
   }
 }
 
+var rosterMode = 'total';
+
 function drawRoster() {
   var box = el('roster-body');
+  el('tab-total').classList.toggle('go', rosterMode === 'total');
+  el('tab-week').classList.toggle('go', rosterMode === 'week');
+
   if (!game.roster.length) {
     box.innerHTML = '<p class="hint">まだ誰も記録がありません。最初のひとりになりましょう。</p>';
     return;
   }
 
-  var rows = game.roster.map(function (entry, i) {
+  var list = game.roster.slice(0);
+  if (rosterMode === 'week') {
+    list = list.filter(function (e) { return (e.weekExp || 0) > 0; })
+               .sort(function (x, y) { return (y.weekExp || 0) - (x.weekExp || 0); });
+  }
+
+  if (!list.length) {
+    box.innerHTML = '<p class="hint">今週はまだ誰も動いていません。最初のひとりになりましょう。</p>';
+    return;
+  }
+
+  var rows = list.map(function (entry, i) {
     var mine = game.me && entry.handle === game.me.handle;
     var badges = (entry.skills || []).map(function (skill) {
       return '<span class="badge">' + esc(skill) + '</span>';
@@ -1607,7 +2171,7 @@ function drawRoster() {
       '<td class="rank">' + (i + 1) + '</td>' +
       '<td>' + esc(entry.handle) + (mine ? ' <span class="hint">(あなた)</span>' : '') + '</td>' +
       '<td class="lvcell">Lv ' + entry.level + '</td>' +
-      '<td class="hint">' + entry.exp + '</td>' +
+      '<td class="hint">' + (rosterMode === 'week' ? (entry.weekExp || 0) : entry.exp) + '</td>' +
       '<td>' + badges + '</td>' +
       '<td class="hint">' + (entry.posts || 0) + '</td>' +
       '</tr>';
@@ -1615,8 +2179,10 @@ function drawRoster() {
 
   box.innerHTML =
     '<table class="board"><thead><tr>' +
-    '<th></th><th>ハンドル</th><th>レベル</th><th>EXP</th><th>スキル</th><th>投稿</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table>';
+    '<th></th><th>ハンドル</th><th>レベル</th><th>' +
+    (rosterMode === 'week' ? '今週のEXP' : '通算EXP') + '</th><th>スキル</th><th>投稿</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    (rosterMode === 'week' ? '<p class="hint gap">毎週 月曜に 0 にもどります。</p>' : '');
 }
 
 // ===== 投稿 =====
@@ -1812,6 +2378,7 @@ function boot() {
       game.questions = res.questions;
       game.rules = res.rules;
       game.roster = res.roster || [];
+      game.raid = res.raid || null;
       game.ready = true;
       el('gate-note').textContent = '問題 ' + res.questions.length + ' 問を よみこみました';
       el('btn-enter').disabled = false;
@@ -1837,16 +2404,16 @@ function enter() {
   el('btn-enter').disabled = true;
 
   if (!server || !game.online) {
-    startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+    startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0, cells: 0 });
     return;
   }
 
   server
     .withSuccessHandler(function (res) {
-      startWith((res && res.me) || { handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+      startWith((res && res.me) || { handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0, cells: 0 });
     })
     .withFailureHandler(function () {
-      startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0 });
+      startWith({ handle: handle, level: 1, exp: 0, progress: {}, skills: [], defeats: 0, hits: 0, tries: 0, posts: 0, cells: 0 });
     })
     .signIn(handle);
 }
@@ -1854,6 +2421,9 @@ function enter() {
 function startWith(me) {
   me.progress = me.progress || {};
   me.skills = me.skills || [];
+  me.cells = me.cells || 0;
+  game.occupied = {};
+  game.combo = 0;
   game.me = me;
   game.maxHp = maxHpFor(me.level);
   game.hp = game.maxHp;
@@ -1867,6 +2437,22 @@ function startWith(me) {
 // ===== つなぎこみ =====
 el('btn-enter').addEventListener('click', enter);
 el('in-handle').addEventListener('keydown', function (e) { if (e.key === 'Enter') enter(); });
+el('btn-cell').addEventListener('click', useCell);
+el('btn-flee').addEventListener('click', function () {
+  if (game.fight && game.fight.kind === 'raid') endRaidRun();
+});
+el('btn-raid-go').addEventListener('click', startRaid);
+el('btn-reload-raid').addEventListener('click', openRaid);
+el('btn-reload-insight').addEventListener('click', openInsight);
+el('btn-reload-mine').addEventListener('click', openMine);
+el('tab-total').addEventListener('click', function () { rosterMode = 'total'; drawRoster(); });
+el('tab-week').addEventListener('click', function () { rosterMode = 'week'; drawRoster(); });
+el('btn-replay').addEventListener('click', function () {
+  if (game.fight && game.fight.question && game.fight.question.kind === 'morse') {
+    playMorse(game.fight.question.code);
+  }
+});
+
 el('ask-yes').addEventListener('click', function () {
   var run = askYes;
   hideAsk();
@@ -1885,6 +2471,9 @@ document.querySelectorAll('[data-go]').forEach(function (button) {
     var to = button.dataset.go;
     if (to === 'base') openBase();
     else if (to === 'roster') openRoster();
+    else if (to === 'insight') openInsight();
+    else if (to === 'mine') openMine();
+    else if (to === 'raid') openRaid();
     else if (to === 'post') { show('post'); el('post-note').textContent = ''; }
   });
 });

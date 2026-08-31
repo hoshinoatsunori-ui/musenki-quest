@@ -1,6 +1,6 @@
 /*
   無線クエスト2
-  Version 2.1
+  Version 2.2
 */
 
 // ===== シート定義 =====
@@ -10,16 +10,27 @@ const SHEET = {
   inbox: '投稿箱',
   op:    'オペレーター',
   log:   '交信ログ',
+  raid:  'レイド',
   conf:  '設定'
 };
 
 const HEAD = {
   bank:  ['問題ID', 'ジャンル', '難易度', '問題文', '選択肢A', '選択肢B', '選択肢C', '選択肢D', '正解', '解説', '作成者', '公開'],
   inbox: ['投稿日時', '投稿者', 'ジャンル', '難易度', '問題文', '選択肢A', '選択肢B', '選択肢C', '選択肢D', '正解', '解説', '審査'],
-  op:    ['ハンドル', 'レベル', '経験値', '進行', '取得スキル', '撃破数', '正答数', '回答数', '投稿数', '最終交信'],
+  op:    ['ハンドル', 'レベル', '経験値', '進行', '取得スキル', '撃破数', '正答数', '回答数', '投稿数', '最終交信',
+          '電池', '週キー', '週経験値', '投稿報酬受取'],
   log:   ['日時', 'ハンドル', 'ジャンル', '問題ID', '誤答数', '所要秒', '結果'],
+  raid:  ['週キー', 'ハンドル', 'あたえたダメージ', '最終更新'],
   conf:  ['項目', '値', '説明']
 };
+
+/** 週替わりレイドのボス。週ごとに順番に入れ替わる。 */
+const RAID_BOSSES = [
+  { name: '大電離圏クジラ', shape: 'wisp' },
+  { name: 'ジャミングの王', shape: 'golem' },
+  { name: '無許可電波の竜', shape: 'dragon' },
+  { name: 'ノイズの海坊主', shape: 'blob' }
+];
 
 /**
  * ジャンルがそのまま冒険のエリアになる。
@@ -61,6 +72,9 @@ const DEFAULT_CONF = [
   ['1日の投稿上限', '5', '1人が1日に投稿できる問題数。経験値めあての連投を防ぎます'],
   ['レベルアップ経験値', '50', 'レベルが1つ上がるのに必要な経験値'],
   ['制限時間', '20', '1問に答えられる秒数。早く答えるほど相手に大きなダメージを与えます'],
+  ['週間レイドHP', '4000', 'みんなで削る週替わりボスのHP。人数が多いほど大きくします'],
+  ['投稿ボーナス', '2', '自分の投稿問題が1回出題されるごとにもらえる経験値'],
+  ['電池の上限', '3', '持ち歩ける予備バッテリーの数。戦闘中にHPを回復できます'],
   ['ランキング表示人数', '20', '「みんなの状況」に出す人数']
 ];
 
@@ -102,6 +116,7 @@ function setupSheets() {
   prepareSheet_(book, SHEET.inbox, HEAD.inbox).setColumnWidth(5, 360);
   prepareSheet_(book, SHEET.op, HEAD.op);
   prepareSheet_(book, SHEET.log, HEAD.log);
+  prepareSheet_(book, SHEET.raid, HEAD.raid);
 
   const conf = prepareSheet_(book, SHEET.conf, HEAD.conf);
   if (conf.getLastRow() <= 1) {
@@ -119,7 +134,9 @@ function prepareSheet_(book, name, head) {
   let sheet = book.getSheetByName(name);
   if (!sheet) sheet = book.insertSheet(name);
   const top = sheet.getRange(1, 1, 1, head.length).getValues()[0];
-  if (top.join('') === '' || top[0] !== head[0]) {
+  // 後ろに列が増えたときは見出しを書き足す。既存の記録はそのまま残る
+  const short = top[0] === head[0] && top[head.length - 1] === '';
+  if (top.join('') === '' || top[0] !== head[0] || short) {
     sheet.getRange(1, 1, 1, head.length).setValues([head])
       .setFontWeight('bold').setBackground('#dbeafe');
     sheet.setFrozenRows(1);
@@ -175,9 +192,11 @@ function bootstrap(handle) {
       questions: questions,
       me: handle ? loadOperator_(book, handle) : null,
       roster: readRoster_(book, conf),
+      raid: getRaid(handle),
       rules: {
         expPerLevel: toRange_(conf['レベルアップ経験値'], 1, 9999, 50),
         timeLimit: toRange_(conf['制限時間'], 5, 300, 20),
+        cellCap: toRange_(conf['電池の上限'], 0, 9, 3),
         postExp: toRange_(conf['投稿経験値'], 0, 9999, 120),
         postLimit: toRange_(conf['1日の投稿上限'], 0, 99, 5)
       }
@@ -427,7 +446,8 @@ function loadOperator_(book, handle) {
   const name = cleanText_(handle, 16);
   const blank = {
     handle: name, level: 1, exp: 0, progress: {}, skills: [],
-    defeats: 0, hits: 0, tries: 0, posts: 0
+    defeats: 0, hits: 0, tries: 0, posts: 0,
+    cells: 0, weekKey: weekKey_(), weekExp: 0, authorPaid: 0
   };
   const sheet = book.getSheetByName(SHEET.op);
   if (!sheet || sheet.getLastRow() <= 1) return blank;
@@ -444,7 +464,11 @@ function loadOperator_(book, handle) {
       defeats: Number(rows[i][5]) || 0,
       hits: Number(rows[i][6]) || 0,
       tries: Number(rows[i][7]) || 0,
-      posts: Number(rows[i][8]) || 0
+      posts: Number(rows[i][8]) || 0,
+      cells: Number(rows[i][10]) || 0,
+      weekKey: String(rows[i][11] || '').trim(),
+      weekExp: Number(rows[i][12]) || 0,
+      authorPaid: Number(rows[i][13]) || 0
     };
   }
   return blank;
@@ -455,16 +479,25 @@ function writeOperator_(book, name, payload) {
   const current = loadOperator_(book, name);
 
   // 経験値や進行は減らさない。通信の行き違いで巻き戻るのを防ぐ
+  const nextExp = Math.max(current.exp, Math.max(0, Number(payload.exp) || 0));
+  const thisWeek = weekKey_();
+  // 週が変わったら週間の記録だけ0に戻す。通算の経験値はそのまま
+  const carried = current.weekKey === thisWeek ? current.weekExp : 0;
+
   const merged = {
     handle: name,
     level: Math.max(current.level, Math.max(1, Number(payload.level) || 1)),
-    exp: Math.max(current.exp, Math.max(0, Number(payload.exp) || 0)),
+    exp: nextExp,
     progress: mergeProgress_(current.progress, payload.progress),
     skills: mergeList_(current.skills, payload.skills),
     defeats: Math.max(current.defeats, Number(payload.defeats) || 0),
     hits: Math.max(current.hits, Number(payload.hits) || 0),
     tries: Math.max(current.tries, Number(payload.tries) || 0),
-    posts: current.posts
+    posts: current.posts,
+    cells: clampCells_(book, payload.cells, current.cells),
+    weekKey: thisWeek,
+    weekExp: carried + Math.max(0, nextExp - current.exp),
+    authorPaid: current.authorPaid
   };
 
   saveOperatorRow_(sheet, merged);
@@ -474,6 +507,9 @@ function writeOperator_(book, name, payload) {
 function addPostReward_(book, name, reward, conf) {
   const sheet = book.getSheetByName(SHEET.op) || prepareSheet_(book, SHEET.op, HEAD.op);
   const me = loadOperator_(book, name);
+  const thisWeek = weekKey_();
+  me.weekExp = (me.weekKey === thisWeek ? me.weekExp : 0) + reward;
+  me.weekKey = thisWeek;
   me.exp += reward;
   me.posts += 1;
   me.level = levelFor_(me.exp, toRange_(conf['レベルアップ経験値'], 1, 9999, 50));
@@ -484,7 +520,8 @@ function addPostReward_(book, name, reward, conf) {
 function saveOperatorRow_(sheet, me) {
   const line = [
     me.handle, me.level, me.exp, formatProgress_(me.progress), me.skills.join(','),
-    me.defeats, me.hits, me.tries, me.posts, new Date()
+    me.defeats, me.hits, me.tries, me.posts, new Date(),
+    me.cells || 0, me.weekKey || weekKey_(), me.weekExp || 0, me.authorPaid || 0
   ];
   const last = sheet.getLastRow();
   if (last > 1) {
@@ -509,18 +546,250 @@ function readRoster_(book, conf) {
     return String(row[0]).trim();
   }).map(function (row) {
     const skills = splitList_(row[4]);
+    const week = weekKey_();
     return {
       handle: String(row[0]).trim(),
       level: Math.max(1, Number(row[1]) || 1),
       exp: Math.max(0, Number(row[2]) || 0),
       skills: skills,
       posts: Number(row[8]) || 0,
-      seenAt: row[9] instanceof Date ? row[9].getTime() : 0
+      seenAt: row[9] instanceof Date ? row[9].getTime() : 0,
+      weekExp: String(row[11] || '').trim() === week ? (Number(row[12]) || 0) : 0
     };
   });
 
   list.sort(function (x, y) { return y.exp - x.exp || y.level - x.level; });
   return list.slice(0, toRange_(conf['ランキング表示人数'], 1, 200, 20));
+}
+
+// ===== 交信ログの集計 =====
+
+/**
+ * 交信ログを読む。件数が増えても重くならないよう、新しいほうから上限ぶんだけ見る。
+ */
+function recentLog_(book, limit) {
+  const sheet = book.getSheetByName(SHEET.log);
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+  const total = sheet.getLastRow() - 1;
+  const take = Math.min(total, limit || 4000);
+  const from = 2 + (total - take);
+  return sheet.getRange(from, 1, take, HEAD.log.length).getValues();
+}
+
+/**
+ * その人がどのジャンルでつまずいているかを出す。
+ * 誤答数と所要秒の平均を見て、苦手な順に並べる。
+ */
+function getInsights(handle) {
+  try {
+    const name = cleanText_(handle, 16);
+    if (!name) return { ok: false, rows: [] };
+
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+    const box = {};
+    recentLog_(book, 4000).forEach(function (row) {
+      if (String(row[1]).trim() !== name) return;
+      const area = String(row[2] || '').trim();
+      if (!area) return;
+      if (!box[area]) box[area] = { area: area, asked: 0, clean: 0, misses: 0, seconds: 0 };
+      const cell = box[area];
+      const miss = Number(row[4]) || 0;
+      cell.asked++;
+      cell.misses += miss;
+      cell.seconds += Number(row[5]) || 0;
+      if (!miss) cell.clean++;
+    });
+
+    const rows = Object.keys(box).map(function (key) {
+      const cell = box[key];
+      return {
+        area: cell.area,
+        asked: cell.asked,
+        cleanRate: Math.round((cell.clean / cell.asked) * 100),
+        avgMiss: Math.round((cell.misses / cell.asked) * 100) / 100,
+        avgSeconds: Math.round((cell.seconds / cell.asked) * 10) / 10
+      };
+    });
+    rows.sort(function (x, y) { return x.cleanRate - y.cleanRate; });
+    return { ok: true, rows: rows };
+  } catch (err) {
+    return { ok: false, rows: [], reason: err.message };
+  }
+}
+
+/**
+ * 自分が投稿した問題が何回出題され、どれくらい正解されたかを返す。
+ * まだ受け取っていない出題ぶんの経験値も、ここで渡す。
+ */
+function getMyQuestions(handle) {
+  const gate = LockService.getScriptLock();
+  if (!gate.tryLock(8000)) return { ok: false, reason: '混み合っています', rows: [] };
+  try {
+    const name = cleanText_(handle, 16);
+    if (!name) return { ok: false, reason: 'ハンドルが未設定です', rows: [] };
+
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+    const conf = readConf_(book);
+    const mine = {};
+
+    const bank = book.getSheetByName(SHEET.bank);
+    if (bank && bank.getLastRow() > 1) {
+      bank.getRange(2, 1, bank.getLastRow() - 1, HEAD.bank.length).getValues().forEach(function (row, i) {
+        if (String(row[10] || '').trim() !== name) return;
+        mine[String(row[0] || ('B' + (i + 1)))] = { id: String(row[0]), text: String(row[3]), state: '出題中' };
+      });
+    }
+
+    const inbox = book.getSheetByName(SHEET.inbox);
+    if (inbox && inbox.getLastRow() > 1) {
+      inbox.getRange(2, 1, inbox.getLastRow() - 1, HEAD.inbox.length).getValues().forEach(function (row, i) {
+        if (String(row[1] || '').trim() !== name) return;
+        const state = String(row[11] || '').trim();
+        mine['P' + (i + 1)] = { id: 'P' + (i + 1), text: String(row[4]), state: state };
+      });
+    }
+
+    const stat = {};
+    recentLog_(book, 4000).forEach(function (row) {
+      const id = String(row[3] || '').trim();
+      if (!mine[id]) return;
+      if (!stat[id]) stat[id] = { asked: 0, clean: 0 };
+      stat[id].asked++;
+      if (!(Number(row[4]) || 0)) stat[id].clean++;
+    });
+
+    let served = 0;
+    const rows = Object.keys(mine).map(function (id) {
+      const hit = stat[id] || { asked: 0, clean: 0 };
+      served += hit.asked;
+      return {
+        id: id,
+        text: mine[id].text,
+        state: mine[id].state,
+        asked: hit.asked,
+        cleanRate: hit.asked ? Math.round((hit.clean / hit.asked) * 100) : null
+      };
+    });
+    rows.sort(function (x, y) { return y.asked - x.asked; });
+
+    // まだ払っていない出題ぶんだけ、あとから経験値を渡す
+    const perAsk = toRange_(conf['投稿ボーナス'], 0, 99, 2);
+    const me = loadOperator_(book, name);
+    const owed = Math.max(0, served - me.authorPaid) * perAsk;
+    let paid = null;
+    if (owed > 0) {
+      const sheet = book.getSheetByName(SHEET.op) || prepareSheet_(book, SHEET.op, HEAD.op);
+      const thisWeek = weekKey_();
+      me.weekExp = (me.weekKey === thisWeek ? me.weekExp : 0) + owed;
+      me.weekKey = thisWeek;
+      me.exp += owed;
+      me.authorPaid = served;
+      me.level = levelFor_(me.exp, toRange_(conf['レベルアップ経験値'], 1, 9999, 50));
+      saveOperatorRow_(sheet, me);
+      paid = me;
+    }
+
+    return { ok: true, rows: rows, served: served, gained: owed, me: paid };
+  } catch (err) {
+    return { ok: false, reason: err.message, rows: [] };
+  } finally {
+    gate.releaseLock();
+  }
+}
+
+// ===== 週替わりの協力レイド =====
+
+/** 週ごとに変わる合言葉。これが変わると週間の記録とレイドが仕切り直しになる。 */
+function weekKey_() {
+  const now = new Date();
+  const thursday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // ISOと同じ数え方。木曜日を含む週をその年の第n週とする
+  thursday.setDate(thursday.getDate() + 3 - ((thursday.getDay() + 6) % 7));
+  const first = new Date(thursday.getFullYear(), 0, 4);
+  const week = 1 + Math.round(
+    ((thursday.getTime() - first.getTime()) / 86400000 - 3 + ((first.getDay() + 6) % 7)) / 7);
+  return thursday.getFullYear() + '-W' + (week < 10 ? '0' + week : week);
+}
+
+function raidBossFor_(week) {
+  let sum = 0;
+  for (let i = 0; i < week.length; i++) sum += week.charCodeAt(i);
+  return RAID_BOSSES[sum % RAID_BOSSES.length];
+}
+
+/** 今週のレイドの様子。残りHPと、貢献した人の一覧を返す。 */
+function getRaid(handle) {
+  try {
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+    const conf = readConf_(book);
+    const week = weekKey_();
+    const maxHp = toRange_(conf['週間レイドHP'], 100, 999999, 4000);
+    const name = cleanText_(handle, 16);
+
+    const sheet = book.getSheetByName(SHEET.raid);
+    const board = {};
+    let dealt = 0;
+    if (sheet && sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, HEAD.raid.length).getValues().forEach(function (row) {
+        if (String(row[0] || '').trim() !== week) return;
+        const who = String(row[1] || '').trim();
+        const hit = Math.max(0, Number(row[2]) || 0);
+        if (!who) return;
+        board[who] = (board[who] || 0) + hit;
+        dealt += hit;
+      });
+    }
+
+    const list = Object.keys(board).map(function (who) {
+      return { handle: who, damage: board[who] };
+    }).sort(function (x, y) { return y.damage - x.damage; });
+
+    const boss = raidBossFor_(week);
+    return {
+      ok: true,
+      week: week,
+      name: boss.name,
+      shape: boss.shape,
+      maxHp: maxHp,
+      hp: Math.max(0, maxHp - dealt),
+      down: dealt >= maxHp,
+      board: list.slice(0, 20),
+      mine: name ? (board[name] || 0) : 0
+    };
+  } catch (err) {
+    return { ok: false, reason: err.message };
+  }
+}
+
+/** レイドに与えたダメージを持ち寄る。1回の申告に上限を置く。 */
+function hitRaid(payload) {
+  const gate = LockService.getScriptLock();
+  if (!gate.tryLock(10000)) return { ok: false, retry: true, reason: '混み合っています' };
+  try {
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+    const name = cleanText_(payload && payload.handle, 16);
+    if (!name) return { ok: false, reason: 'ハンドルが未設定です' };
+
+    const damage = Math.max(0, Math.min(2000, Math.round(Number(payload && payload.damage) || 0)));
+    if (damage > 0) {
+      const sheet = book.getSheetByName(SHEET.raid) || prepareSheet_(book, SHEET.raid, HEAD.raid);
+      sheet.appendRow([weekKey_(), name, damage, new Date()]);
+    }
+    return { ok: true, raid: getRaid(name) };
+  } catch (err) {
+    return { ok: false, retry: true, reason: err.message };
+  } finally {
+    gate.releaseLock();
+  }
+}
+
+/** 電池の数を、設定した上限のなかに収める。 */
+function clampCells_(book, raw, fallback) {
+  const conf = readConf_(book);
+  const cap = toRange_(conf['電池の上限'], 0, 9, 3);
+  const n = Number(raw);
+  if (!isFinite(n)) return Math.min(fallback || 0, cap);
+  return Math.max(0, Math.min(cap, Math.floor(n)));
 }
 
 // ===== 進行状況の入れ物 =====
