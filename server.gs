@@ -33,8 +33,14 @@ const AREAS = [
   { key: '電波法規',     boss: '条文の守護者',   skill: '法令遵守',   shape: 'golem',   hue: 0   }
 ];
 
-/** 1エリアあたりの道のり。最後のノードがボス。 */
-const NODES_PER_AREA = 6;
+/** 1エリアで集めるアイテムの数。3つそろうとボスに挑める。 */
+const ITEMS_PER_AREA = 3;
+
+/**
+ * 進行はビットで持つ。1つめを取ったら 1、2つめで 2、3つめで 4。
+ * 3つそろうと 7 になる。どのアイテムを取ったかまで1つの数で覚えられる。
+ */
+const PROGRESS_FULL = (1 << ITEMS_PER_AREA) - 1;
 
 /** 道中のモンスター。難易度に応じて選ばれる。 */
 const MOBS = [
@@ -54,6 +60,7 @@ const DEFAULT_CONF = [
   ['投稿の自動承認', 'OFF', 'ON にすると投稿がすぐ出題に混ざります。OFF なら「投稿箱」で承認するまで出ません'],
   ['1日の投稿上限', '5', '1人が1日に投稿できる問題数。経験値めあての連投を防ぎます'],
   ['レベルアップ経験値', '50', 'レベルが1つ上がるのに必要な経験値'],
+  ['制限時間', '20', '1問に答えられる秒数。早く答えるほど相手に大きなダメージを与えます'],
   ['ランキング表示人数', '20', '「みんなの状況」に出す人数']
 ];
 
@@ -162,13 +169,15 @@ function bootstrap(handle) {
     return {
       ok: true,
       areas: AREAS,
-      nodesPerArea: NODES_PER_AREA,
+      maps: AREA_MAPS,
+      itemsPerArea: ITEMS_PER_AREA,
       mobs: MOBS,
       questions: questions,
       me: handle ? loadOperator_(book, handle) : null,
       roster: readRoster_(book, conf),
       rules: {
         expPerLevel: toRange_(conf['レベルアップ経験値'], 1, 9999, 50),
+        timeLimit: toRange_(conf['制限時間'], 5, 300, 20),
         postExp: toRange_(conf['投稿経験値'], 0, 9999, 120),
         postLimit: toRange_(conf['1日の投稿上限'], 0, 99, 5)
       }
@@ -524,7 +533,7 @@ function parseProgress_(raw) {
     if (at < 1) return;
     const key = part.slice(0, at).trim();
     const step = Number(part.slice(at + 1));
-    if (key && isFinite(step)) out[key] = Math.max(0, Math.min(NODES_PER_AREA, Math.floor(step)));
+    if (key && isFinite(step)) out[key] = Math.max(0, Math.min(PROGRESS_FULL, Math.floor(step)));
   });
   return out;
 }

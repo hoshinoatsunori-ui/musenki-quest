@@ -172,14 +172,64 @@
   .area .sub { font-size: 12px; color: var(--dim); }
   .area .mark { font-size: 11px; letter-spacing: .1em; }
 
-  .track { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
-  .track i {
-    width: 15px; height: 8px; border-radius: 1px;
+  /* 集めたアイテムの印。エリア一覧と地図の両方で使う */
+  .relics { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+  .relics i {
+    width: 11px; height: 11px; transform: rotate(45deg);
     background: #24365c; border: 1px solid #35476f;
   }
-  .track i.past { background: var(--signal); border-color: var(--signal); }
-  .track i.boss { width: 22px; background: #3a1f2b; border-color: var(--hit); }
-  .track i.boss.past { background: var(--gold); border-color: var(--gold); }
+  .relics i.held { background: var(--gold); border-color: var(--gold); }
+  .relics .boss-mark { margin-left: 4px; font-size: 11px; color: var(--dim); letter-spacing: .1em; }
+  .relics .boss-mark.ready { color: var(--hit); }
+  .relics .boss-mark.done { color: var(--gold); }
+
+  /* ===== 地図 ===== */
+  .map-wrap {
+    background: var(--void);
+    border: 2px solid #2b3a5e;
+    border-radius: 3px;
+    padding: 8px;
+    overflow-x: auto;
+  }
+  .map-wrap svg { display: block; width: 100%; height: auto; min-width: 340px; }
+  .walker { transition: x .12s linear, y .12s linear; }
+
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 6px;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  .pad button {
+    background: var(--panel-2);
+    border: 2px solid var(--edge);
+    border-radius: 3px;
+    color: var(--ink);
+    font-size: 17px;
+    cursor: pointer;
+  }
+  .pad button:active { transform: translateY(2px); background: #1d2b4c; }
+  .pad .blank { visibility: hidden; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 10px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend b { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
+
+  /* ===== 制限時間 ===== */
+  .clock { margin: 0 0 12px; }
+  .clock .cap {
+    display: flex; justify-content: space-between;
+    font-size: 11px; letter-spacing: .1em; color: var(--dim); margin-bottom: 3px;
+  }
+  .clock .cap .left { color: var(--signal); font-weight: 700; }
+  .clock .cap .left.hurry { color: var(--gold); }
+  .clock .cap .left.out { color: var(--hit); }
+  .clock .bar { height: 7px; }
+  .clock .bar > i { background: var(--signal); transition: width .1s linear; }
+  .clock.hurry .bar > i { background: var(--gold); }
+  .clock.out .bar > i { background: var(--hit); }
 
   .badge {
     display: inline-block;
@@ -332,18 +382,33 @@
     </div>
   </section>
 
-  <!-- ===== ルート ===== -->
-  <section id="v-route" class="view">
+  <!-- ===== 地図 ===== -->
+  <section id="v-map" class="view">
     <div class="frame tight">
-      <div class="status" id="route-status"></div>
+      <div class="status" id="map-status"></div>
     </div>
 
     <div class="frame">
-      <h2 id="route-title">エリア</h2>
-      <div id="route-map"></div>
-      <p id="route-note" class="hint gap"></p>
+      <h2 id="map-title">エリア</h2>
+      <div class="map-wrap" id="map-canvas"></div>
+
+      <div class="legend" id="map-legend"></div>
+
+      <p id="map-note" class="hint gap"></p>
+
+      <div class="pad">
+        <div class="blank"></div>
+        <button data-step="up" aria-label="うえ">&#9650;</button>
+        <div class="blank"></div>
+        <button data-step="left" aria-label="ひだり">&#9664;</button>
+        <div class="blank"></div>
+        <button data-step="right" aria-label="みぎ">&#9654;</button>
+        <div class="blank"></div>
+        <button data-step="down" aria-label="した">&#9660;</button>
+        <div class="blank"></div>
+      </div>
+
       <div class="btn-row gap">
-        <button id="btn-advance" class="btn go">すすむ</button>
         <button class="btn quiet" data-go="base">基地局にもどる</button>
       </div>
     </div>
@@ -367,6 +432,14 @@
     </div>
 
     <div class="frame">
+      <div class="clock" id="clock">
+        <div class="cap">
+          <span>のこり時間</span>
+          <span class="left" id="clock-left">--</span>
+        </div>
+        <div class="bar"><i id="clock-bar" style="width:100%"></i></div>
+      </div>
+
       <div class="qgenre" id="q-genre"></div>
       <div class="qbody" id="q-body"></div>
       <div class="picks" id="q-picks"></div>
@@ -455,20 +528,27 @@ var game = {
   online: false,
   ready: false,
   areas: [],
-  nodesPerArea: 6,
+  maps: {},
+  itemsPerArea: 3,
   mobs: [],
   questions: [],
-  rules: { expPerLevel: 50, postExp: 120, postLimit: 5 },
+  rules: { expPerLevel: 50, postExp: 120, postLimit: 5, timeLimit: 20 },
   roster: [],
   me: null,
   hp: 0,
   maxHp: 0,
   usedIds: {},
-  route: null,     // いま見ているエリア
+  area: null,      // いま歩いているエリアの番号
+  here: null,      // 地図上のいまいる場所 {x, y}
+  steps: 0,        // そのエリアで歩いた歩数
+  walking: false,  // 移動アニメの最中は次の入力を受けない
   fight: null,     // 交戦中の情報
+  clockTimer: null,
   pendingLog: [],
   sending: false
 };
+
+var ALL_ITEMS = 7;   // アイテム3つぶんのビットがすべて立った状態
 
 // ===== 数値まわり =====
 // レベルが上がると殴れる回数が減る＝先に進むほど1問の重みが増す、という設計。
@@ -484,20 +564,38 @@ function damageRate(misses) {
   return 0.15;
 }
 
-// ノードごとの難易度。最後だけボス
-function tierOfNode(index) {
-  if (index >= game.nodesPerArea - 1) return 3;
-  return [1, 1, 2, 2, 3][index] || 1;
+// 早く答えるほど大きなダメージ。時間いっぱい使っても半分は入る
+function speedRate(msLeft) {
+  var full = game.rules.timeLimit * 1000;
+  if (!full) return 1;
+  return 0.5 + 0.5 * Math.max(0, Math.min(1, msLeft / full));
 }
 
-function foeStats(tier, isBoss) {
-  if (isBoss) return { hp: 160, atk: 12, exp: 90 };
+// 出会う相手の強さ。道中は集めたアイテムが増えるほど手ごわくなる
+function tierFor(kind, held) {
+  if (kind === 'boss') return 3;
+  if (kind === 'item') return 2;
+  return held >= 2 ? 2 : 1;
+}
+
+function foeStats(tier, kind) {
+  if (kind === 'boss') return { hp: 160, atk: 12, exp: 90 };
+  if (kind === 'item') return { hp: 40 + tier * 20, atk: 5 + tier * 2, exp: 16 + tier * 8 };
   return { hp: 30 + tier * 20, atk: 5 + tier * 2, exp: 10 + tier * 8 };
 }
 
+// 進行はビットで持つ。何個そろったかを数える
+function countItems(bits) {
+  var n = 0;
+  for (var i = 0; i < game.itemsPerArea; i++) if (bits & (1 << i)) n++;
+  return n;
+}
+
+function heldIn(areaKey) { return game.me.progress[areaKey] || 0; }
+
 // ===== 画面切り替え =====
 function show(name) {
-  ['gate', 'base', 'route', 'battle', 'roster', 'post'].forEach(function (key) {
+  ['gate', 'base', 'map', 'battle', 'roster', 'post'].forEach(function (key) {
     el('v-' + key).classList.toggle('on', key === name);
   });
   window.scrollTo(0, 0);
@@ -619,13 +717,15 @@ function statusHtml() {
 }
 
 function paintStatus() {
-  ['base-status', 'route-status', 'fight-status'].forEach(function (id) {
+  ['base-status', 'map-status', 'fight-status'].forEach(function (id) {
     el(id).innerHTML = statusHtml();
   });
 }
 
 // ===== 基地局 =====
 function openBase() {
+  stopClock();
+  game.fight = null;
   game.hp = game.maxHp;       // 基地局にもどると回復する
   paintStatus();
   paintAreas();
@@ -644,15 +744,18 @@ function paintAreas() {
   box.innerHTML = '';
 
   game.areas.forEach(function (area, index) {
-    var step = game.me.progress[area.key] || 0;
-    var cleared = step >= game.nodesPerArea;
+    var held = heldIn(area.key);
+    var got = countItems(held);
+    var cleared = game.me.skills.indexOf(area.skill) !== -1;
     var open = areaUnlocked(index);
+    var sheet = game.maps[area.key] || {};
 
     var marks = '';
-    for (var i = 0; i < game.nodesPerArea; i++) {
-      marks += '<i class="' + (i === game.nodesPerArea - 1 ? 'boss ' : '') +
-               (i < step ? 'past' : '') + '"></i>';
+    for (var i = 0; i < game.itemsPerArea; i++) {
+      marks += '<i class="' + ((held & (1 << i)) ? 'held' : '') + '"></i>';
     }
+    marks += '<span class="boss-mark ' + (cleared ? 'done' : (got >= game.itemsPerArea ? 'ready' : '')) + '">' +
+      (cleared ? '討伐ずみ' : (got >= game.itemsPerArea ? 'ボスに挑める' : 'ボス')) + '</span>';
 
     var node = document.createElement('button');
     node.className = 'area' + (open ? '' : ' locked') + (cleared ? ' done' : '');
@@ -661,16 +764,17 @@ function paintAreas() {
       '<svg width="54" height="48" viewBox="0 0 200 176">' +
         (SHAPES[area.shape] || SHAPES.blob)(paint(area.hue)) + '</svg>' +
       '<div>' +
-        '<div class="name">' + esc(area.key) + '</div>' +
+        '<div class="name">' + esc(area.key) +
+          (sheet.title ? ' <span class="sub">' + esc(sheet.title) + '</span>' : '') + '</div>' +
         '<div class="sub">ボス ' + esc(area.boss) + '</div>' +
-        '<div class="track">' + marks + '</div>' +
+        '<div class="relics">' + marks + '</div>' +
       '</div>' +
       '<div class="mark">' + (cleared
         ? '<span class="badge">' + esc(area.skill) + '</span>'
-        : (open ? '<span class="hint">' + step + ' / ' + game.nodesPerArea + '</span>'
+        : (open ? '<span class="hint">アイテム ' + got + ' / ' + game.itemsPerArea + '</span>'
                 : '<span class="hint">未開放</span>')) + '</div>';
 
-    if (open) node.addEventListener('click', function () { openRoute(index); });
+    if (open) node.addEventListener('click', function () { openMap(index); });
     box.appendChild(node);
   });
 }
@@ -688,46 +792,237 @@ function paintSkills() {
   }).join('');
 }
 
-// ===== ルート =====
-function openRoute(index) {
-  game.route = index;
+// ===== 地図 =====
+// 1文字＝1マスの文字列をSVGのマス目に起こす。歩いた先で敵に出会い、
+// アイテムのマスでは守り手と戦い、3つそろってはじめてボスの前を通れる。
+
+var TILE = 34;                 // 1マスの大きさ（SVG座標）
+var STEP_KEYS = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  w: 'up', s: 'down', a: 'left', d: 'right',
+  W: 'up', S: 'down', A: 'left', D: 'right'
+};
+var STEP_DELTA = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+
+function sheetFor(index) {
   var area = game.areas[index];
-  var step = game.me.progress[area.key] || 0;
-  var cleared = step >= game.nodesPerArea;
+  return game.maps[area.key] || { title: area.key, grid: ['#####'], items: [] };
+}
 
-  el('route-title').textContent = area.key;
+function tileAt(grid, x, y) {
+  if (y < 0 || y >= grid.length) return '#';
+  var row = grid[y];
+  if (x < 0 || x >= row.length) return '#';
+  return row.charAt(x);
+}
 
-  var cells = '';
-  for (var i = 0; i < game.nodesPerArea; i++) {
-    var boss = (i === game.nodesPerArea - 1);
-    var state = i < step ? 'past' : (i === step ? 'here' : 'ahead');
-    cells +=
-      '<div style="text-align:center;flex:0 0 auto;opacity:' +
-        (state === 'ahead' ? '.4' : '1') + '">' +
-      '<svg width="' + (boss ? 62 : 46) + '" height="' + (boss ? 56 : 42) + '" viewBox="0 0 200 176">' +
-        (boss ? (SHAPES[area.shape] || SHAPES.blob)(paint(area.hue))
-              : SHAPES.blob(paint(area.hue))) + '</svg>' +
-      '<div style="font-size:11px;color:' +
-        (state === 'past' ? 'var(--signal)' : (state === 'here' ? 'var(--gold)' : 'var(--dim)')) + '">' +
-        (state === 'past' ? '撃破' : (state === 'here' ? 'ここ' : '')) + '</div>' +
-      '</div>';
+function findTile(grid, ch) {
+  for (var y = 0; y < grid.length; y++) {
+    var x = grid[y].indexOf(ch);
+    if (x !== -1) return { x: x, y: y };
   }
-  el('route-map').innerHTML =
-    '<div style="display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:6px">' +
-    cells + '</div>';
+  return null;
+}
 
-  el('route-note').innerHTML = cleared
-    ? 'このエリアは踏破ずみ。スキル「<b class="flash">' + esc(area.skill) + '</b>」を習得しています。もう一度挑んで経験値を稼ぐこともできます。'
-    : (step === game.nodesPerArea - 1
-        ? 'つぎは <b class="warn">' + esc(area.boss) + '</b>。勝てばスキル「' + esc(area.skill) + '」を習得します。'
-        : 'つぎの相手まで あと ' + (game.nodesPerArea - 1 - step) + ' 体でボスです。');
+function openMap(index) {
+  game.area = index;
+  game.steps = 0;
+  game.walking = false;
 
-  el('btn-advance').textContent = cleared ? 'もう一度いどむ' : 'すすむ';
+  var sheet = sheetFor(index);
+  var start = findTile(sheet.grid, 'S') || { x: 1, y: 1 };
+  game.here = { x: start.x, y: start.y };
+
+  el('map-title').innerHTML = esc(game.areas[index].key) +
+    ' <span class="sub" style="font-weight:400">' + esc(sheet.title) + '</span>';
+
+  paintLegend(index);
+  drawMap();
   paintStatus();
-  show('route');
+  show('map');
+}
+
+function paintLegend(index) {
+  var hue = game.areas[index].hue;
+  var c = terrain(hue);
+  el('map-legend').innerHTML =
+    '<span><b style="background:' + c.road + '"></b>道（安全）</span>' +
+    '<span><b style="background:' + c.field + '"></b>野（敵が出る）</span>' +
+    '<span><b style="background:' + c.wallTop + '"></b>かべ</span>' +
+    '<span><b style="background:var(--gold)"></b>アイテム</span>' +
+    '<span><b style="background:var(--hit)"></b>ボス</span>';
+}
+
+// エリアの色相から地形の色をつくる。
+// かべ・野・道がひと目で見分けられるよう、明るさをはっきり離す。
+function terrain(hue) {
+  return {
+    wall:  'hsl(' + hue + ',26%,9%)',
+    wallTop: 'hsl(' + hue + ',22%,19%)',
+    road:  'hsl(' + hue + ',12%,52%)',
+    field: 'hsl(' + hue + ',38%,27%)',
+    tuft:  'hsl(' + hue + ',34%,40%)'
+  };
+}
+
+function drawMap() {
+  var index = game.area;
+  var area = game.areas[index];
+  var sheet = sheetFor(index);
+  var grid = sheet.grid;
+  var held = heldIn(area.key);
+  var cleared = game.me.skills.indexOf(area.skill) !== -1;
+  var c = terrain(area.hue);
+
+  var w = grid[0].length * TILE;
+  var h = grid.length * TILE;
+  var cells = '';
+
+  for (var y = 0; y < grid.length; y++) {
+    for (var x = 0; x < grid[y].length; x++) {
+      var ch = tileAt(grid, x, y);
+      var fill = (ch === '#') ? c.wall : (ch === ',' ? c.field : c.road);
+      cells += '<rect x="' + (x * TILE) + '" y="' + (y * TILE) + '" width="' + TILE +
+               '" height="' + TILE + '" fill="' + fill + '" stroke="rgba(0,0,0,.25)" stroke-width="1"/>';
+
+      var cx = x * TILE + TILE / 2;
+      var cy = y * TILE + TILE / 2;
+
+      if (ch === '#') {
+        // かべは石を積んだ見た目にして、床とはっきり区別する
+        cells += '<rect x="' + (x * TILE + 3) + '" y="' + (y * TILE + 3) + '" width="' + (TILE - 6) +
+                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>' +
+                 '<rect x="' + (x * TILE + 3) + '" y="' + (y * TILE + TILE / 2 + 1) + '" width="' + (TILE / 2 - 5) +
+                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>' +
+                 '<rect x="' + (x * TILE + TILE / 2 + 2) + '" y="' + (y * TILE + TILE / 2 + 1) + '" width="' + (TILE / 2 - 5) +
+                 '" height="' + (TILE / 2 - 4) + '" fill="' + c.wallTop + '" rx="1"/>';
+      } else if (ch === ',') {
+        // 野は草を2本生やして、敵が出る場所だと分かるようにする
+        cells += '<path d="M' + (cx - 6) + ' ' + (cy + 5) + 'l3 -6 M' + (cx - 3) + ' ' + (cy + 5) + 'l1 -4' +
+                 ' M' + (cx + 5) + ' ' + (cy + 6) + 'l-3 -6 M' + (cx + 2) + ' ' + (cy + 6) + 'l-1 -4"' +
+                 ' stroke="' + c.tuft + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+      }
+
+      if (ch === '1' || ch === '2' || ch === '3') {
+        var slot = Number(ch) - 1;
+        if (held & (1 << slot)) {
+          cells += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="rgba(255,201,74,.30)"/>';
+        } else {
+          cells += '<path d="M' + cx + ' ' + (cy - 9) + 'L' + (cx + 9) + ' ' + cy +
+                   'L' + cx + ' ' + (cy + 9) + 'L' + (cx - 9) + ' ' + cy + 'Z" ' +
+                   'fill="var(--gold)" stroke="#7a5a10" stroke-width="1.5"/>';
+        }
+      } else if (ch === 'B') {
+        var lit = cleared ? 'rgba(255,201,74,.35)' : (countItems(held) >= game.itemsPerArea ? 'var(--hit)' : '#4a2230');
+        cells += '<rect x="' + (cx - 10) + '" y="' + (cy - 10) + '" width="20" height="20" rx="3" fill="' + lit + '"/>' +
+                 '<text x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle" font-size="12" fill="#0b1220">B</text>';
+      } else if (ch === 'S') {
+        cells += '<circle cx="' + cx + '" cy="' + cy + '" r="7" fill="none" ' +
+                 'stroke="var(--signal)" stroke-width="2" stroke-dasharray="3 2"/>';
+      }
+    }
+  }
+
+  var px = game.here.x * TILE;
+  var py = game.here.y * TILE;
+  var hero =
+    '<g class="walker" transform="translate(' + px + ',' + py + ')">' +
+      '<circle cx="' + (TILE / 2) + '" cy="' + (TILE / 2) + '" r="11" fill="var(--signal)" stroke="#0b1220" stroke-width="2"/>' +
+      '<circle cx="' + (TILE / 2 - 3.5) + '" cy="' + (TILE / 2 - 2) + '" r="1.8" fill="#0b1220"/>' +
+      '<circle cx="' + (TILE / 2 + 3.5) + '" cy="' + (TILE / 2 - 2) + '" r="1.8" fill="#0b1220"/>' +
+    '</g>';
+
+  el('map-canvas').innerHTML =
+    '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(sheet.title) + 'の地図">' +
+    cells + hero + '</svg>';
+
+  paintMapNote();
+}
+
+function paintMapNote() {
+  var area = game.areas[game.area];
+  var sheet = sheetFor(game.area);
+  var held = heldIn(area.key);
+  var got = countItems(held);
+  var cleared = game.me.skills.indexOf(area.skill) !== -1;
+
+  var bag = [];
+  for (var i = 0; i < game.itemsPerArea; i++) {
+    var name = sheet.items[i] || ('アイテム' + (i + 1));
+    bag.push((held & (1 << i))
+      ? '<span class="badge">' + esc(name) + '</span>'
+      : '<span class="badge plain">？？？</span>');
+  }
+
+  var line;
+  if (cleared) {
+    line = 'このエリアは踏破ずみ。スキル「<b class="flash">' + esc(area.skill) + '</b>」を習得しています。';
+  } else if (got >= game.itemsPerArea) {
+    line = 'アイテムが3つそろった。<b class="warn">' + esc(area.boss) + '</b> の待つ B のマスへ進もう。';
+  } else {
+    line = 'かがやくマスでアイテムの守り手と戦える。あと <b class="flash">' +
+           (game.itemsPerArea - got) + '</b> つでボスに挑める。';
+  }
+
+  el('map-note').innerHTML = bag.join(' ') + '<div style="margin-top:8px">' + line + '</div>';
+}
+
+// ===== 歩く =====
+function walk(dir) {
+  if (game.walking || game.fight) return;
+  if (!el('v-map').classList.contains('on')) return;
+
+  var delta = STEP_DELTA[dir];
+  var sheet = sheetFor(game.area);
+  var nx = game.here.x + delta[0];
+  var ny = game.here.y + delta[1];
+  var ch = tileAt(sheet.grid, nx, ny);
+
+  if (ch === '#') return;
+
+  var area = game.areas[game.area];
+  var held = heldIn(area.key);
+
+  // アイテムが3つそろうまで、ボスのマスには入れない
+  if (ch === 'B' && countItems(held) < game.itemsPerArea &&
+      game.me.skills.indexOf(area.skill) === -1) {
+    toast('アイテムが3つそろっていない');
+    return;
+  }
+
+  game.walking = true;
+  game.here = { x: nx, y: ny };
+  game.steps++;
+  drawMap();
+
+  setTimeout(function () {
+    game.walking = false;
+    arriveAt(ch);
+  }, 130);
+}
+
+function arriveAt(ch) {
+  var area = game.areas[game.area];
+  var held = heldIn(area.key);
+
+  if (ch === '1' || ch === '2' || ch === '3') {
+    var slot = Number(ch) - 1;
+    if (!(held & (1 << slot))) { startBattle('item', slot); return; }
+    return;
+  }
+
+  if (ch === 'B') {
+    if (game.me.skills.indexOf(area.skill) === -1) { startBattle('boss', -1); return; }
+    toast('ここはもう静かだ');
+    return;
+  }
+
+  // 野原だけ敵が出る。歩き出してすぐは出さない
+  if (ch === ',' && game.steps > 2 && Math.random() < 0.24) startBattle('random', -1);
 }
 
 // ===== 出題の選び方 =====
+
 function pickQuestion(areaKey, tier) {
   var inArea = game.questions.filter(function (q) { return q.area === areaKey; });
   if (!inArea.length) return null;
@@ -750,46 +1045,117 @@ function pickMob(tier) {
 }
 
 // ===== 交戦 =====
-function advance() {
-  var area = game.areas[game.route];
-  var step = game.me.progress[area.key] || 0;
-  var node = Math.min(step, game.nodesPerArea - 1);
-  var isBoss = (node === game.nodesPerArea - 1);
-  var tier = tierOfNode(node);
+// kind は 'random'（道中）'item'（アイテムの守り手）'boss' の3種類。
+// slot はアイテムの番号（0〜2）で、item のときだけ使う。
+function startBattle(kind, slot) {
+  var area = game.areas[game.area];
+  var sheet = sheetFor(game.area);
+  var held = heldIn(area.key);
+  var tier = tierFor(kind, countItems(held));
 
   var question = pickQuestion(area.key, tier);
   if (!question) { toast('このジャンルの問題がまだありません'); return; }
 
-  var stats = foeStats(tier, isBoss);
-  var mob = isBoss ? { name: area.boss, shape: area.shape } : pickMob(tier);
+  var stats = foeStats(tier, kind);
+  var mob;
+  if (kind === 'boss') mob = { name: area.boss, shape: area.shape };
+  else if (kind === 'item') mob = { name: (sheet.items[slot] || 'アイテム') + 'の守り手', shape: pickMob(tier).shape };
+  else mob = pickMob(tier);
 
   game.fight = {
     area: area,
-    node: node,
-    isBoss: isBoss,
+    kind: kind,
+    slot: slot,
     tier: tier,
     name: mob.name,
-    shape: mob.shape,
-    hue: area.hue,
+    prize: kind === 'item' ? (sheet.items[slot] || ('アイテム' + (slot + 1))) : '',
     hp: stats.hp,
     maxHp: stats.hp,
     atk: stats.atk,
     exp: stats.exp,
-    question: question,
+    question: null,
     misses: 0,
-    askedAt: Date.now(),
+    timedOut: false,
+    askedAt: 0,
     settled: false
   };
 
-  el('foe-art').innerHTML = foeArt(mob.shape, area.hue, isBoss);
+  el('foe-art').innerHTML = foeArt(mob.shape, area.hue, kind === 'boss');
   el('foe-name').innerHTML = esc(mob.name) +
-    '<span class="tier">' + (isBoss ? 'ボス' : '難易度 ' + tier) + '</span>';
+    '<span class="tier">' + (kind === 'boss' ? 'ボス' : '難易度 ' + tier) + '</span>';
   el('foe-bar').style.width = '100%';
-  el('q-say').innerHTML = '<span class="flash">' + esc(mob.name) + ' が あらわれた！</span>';
+  el('q-say').innerHTML = '<span class="' + (kind === 'boss' ? 'warn' : 'flash') + '">' +
+    esc(mob.name) + ' が あらわれた！</span>';
 
-  drawQuestion(question);
+  askQuestion(question);
   paintStatus();
   show('battle');
+}
+
+// ===== 制限時間 =====
+// 残り時間はダメージの倍率になる。時間切れは「1回まちがえた」のと同じ扱い。
+function startClock() {
+  stopClock();
+  var fight = game.fight;
+  if (!fight) return;
+
+  fight.askedAt = Date.now();
+  fight.timedOut = false;
+  paintClock();
+  game.clockTimer = setInterval(paintClock, 100);
+}
+
+function stopClock() {
+  if (game.clockTimer) { clearInterval(game.clockTimer); game.clockTimer = null; }
+}
+
+function msLeft() {
+  var fight = game.fight;
+  if (!fight || !fight.askedAt) return 0;
+  return Math.max(0, game.rules.timeLimit * 1000 - (Date.now() - fight.askedAt));
+}
+
+function paintClock() {
+  var fight = game.fight;
+  if (!fight) return;
+
+  var left = msLeft();
+  var full = game.rules.timeLimit * 1000;
+  var ratio = full ? left / full : 0;
+  var box = el('clock');
+
+  el('clock-bar').style.width = (ratio * 100) + '%';
+  el('clock-left').textContent = (left / 1000).toFixed(1) + ' 秒';
+
+  var mood = left <= 0 ? 'out' : (ratio <= 0.34 ? 'hurry' : '');
+  box.className = 'clock ' + mood;
+  el('clock-left').className = 'left ' + mood;
+
+  if (left <= 0 && !fight.timedOut && !fight.settled) timeUp();
+}
+
+function timeUp() {
+  var fight = game.fight;
+  fight.timedOut = true;
+  stopClock();
+
+  game.hp = Math.max(0, game.hp - fight.atk);
+  popDamage('-' + fight.atk, 'var(--hit)');
+  paintStatus();
+
+  if (game.hp <= 0) { lose(); return; }
+
+  el('q-say').innerHTML = '<span class="warn">時間切れ！ ' + esc(fight.name) +
+    ' の こうげき！ ' + fight.atk + ' のダメージ</span>' +
+    '<span class="why">答えは まだ えらべます。ダメージは いちばん小さくなります。</span>';
+}
+
+function askQuestion(question) {
+  game.fight.question = question;
+  game.fight.misses = 0;
+  game.fight.settled = false;
+  drawQuestion(question);
+  startClock();
 }
 
 function drawQuestion(question) {
@@ -835,16 +1201,21 @@ function answer(index) {
 
     el('q-say').innerHTML = '<span class="warn">ちがう！ ' + esc(fight.name) +
       ' の こうげき！ ' + fight.atk + ' のダメージ</span>' +
-      '<span class="why">もういちど えらべます。</span>';
+      '<span class="why">もういちど えらべます。時計は止まりません。</span>';
     return;
   }
 
-  // 正解。間違えた回数ぶんだけ与えるダメージが落ちる
+  // 正解。答えるまでの速さと、間違えた回数の両方でダメージが決まる
   fight.settled = true;
+  stopClock();
   chosen.classList.add('right');
   for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
 
-  var blow = Math.max(1, Math.round(powerFor(game.me.level) * damageRate(fight.misses)));
+  var left = fight.timedOut ? 0 : msLeft();
+  var speed = speedRate(left);
+  var spent = (Date.now() - fight.askedAt) / 1000;
+  var blow = Math.max(1, Math.round(powerFor(game.me.level) * speed * damageRate(fight.misses)));
+
   fight.hp = Math.max(0, fight.hp - blow);
   el('foe-bar').style.width = ((fight.hp / fight.maxHp) * 100) + '%';
 
@@ -855,16 +1226,23 @@ function answer(index) {
   game.pendingLog.push({
     area: fight.area.key,
     questionId: question.id,
-    misses: fight.misses,
-    seconds: (Date.now() - fight.askedAt) / 1000,
+    misses: fight.misses + (fight.timedOut ? 1 : 0),
+    seconds: spent,
     cleared: fight.hp <= 0
   });
   game.me.tries++;
-  if (fight.misses === 0) game.me.hits++;
+  if (fight.misses === 0 && !fight.timedOut) game.me.hits++;
 
-  var line = fight.misses === 0
-    ? '<span class="flash">一発正解！ ' + blow + ' のダメージ</span>'
-    : '正解。' + blow + ' のダメージ（' + fight.misses + '回まちがえたぶん、威力が落ちた）';
+  var why = [];
+  why.push(fight.timedOut
+    ? '時間切れ ×0.5'
+    : spent.toFixed(1) + '秒 ×' + speed.toFixed(2));
+  if (fight.misses) why.push(fight.misses + '回まちがえ ×' + damageRate(fight.misses));
+
+  var head = (fight.misses === 0 && !fight.timedOut && speed >= 0.9)
+    ? '<span class="flash">かいしんの一撃！ ' + blow + ' のダメージ</span>'
+    : '正解！ ' + blow + ' のダメージ';
+  var line = head + '<span class="why">' + esc(why.join(' / ')) + '</span>';
   if (question.note) line += '<span class="why">' + esc(question.note) + '</span>';
   el('q-say').innerHTML = line;
 
@@ -877,31 +1255,46 @@ function answer(index) {
 
 function nextQuestion() {
   var fight = game.fight;
-  if (!fight) { openRoute(game.route); return; }
+  if (!fight) { backToMap(); return; }
 
   var question = pickQuestion(fight.area.key, fight.tier);
-  if (!question) { toast('出題できる問題が尽きました'); openRoute(game.route); return; }
+  if (!question) { toast('出題できる問題が尽きました'); backToMap(); return; }
 
-  fight.question = question;
-  fight.misses = 0;
-  fight.askedAt = Date.now();
-  fight.settled = false;
   el('q-say').innerHTML = '';
-  drawQuestion(question);
+  askQuestion(question);
+}
+
+function backToMap() {
+  stopClock();
+  game.fight = null;
+  drawMap();
+  paintStatus();
+  show('map');
 }
 
 function win() {
   var fight = game.fight;
+  stopClock();
+
   var art = el('foe-svg');
   if (art) art.classList.add('gone');
 
   game.me.exp += fight.exp;
   game.me.defeats++;
 
-  var step = game.me.progress[fight.area.key] || 0;
-  if (fight.node >= step) game.me.progress[fight.area.key] = fight.node + 1;
-
   var lines = '<span class="flash">' + esc(fight.name) + ' を たおした！ 経験値 +' + fight.exp + '</span>';
+
+  // アイテムの守り手を倒したら、そのアイテムが手に入る
+  if (fight.kind === 'item') {
+    var held = heldIn(fight.area.key) | (1 << fight.slot);
+    game.me.progress[fight.area.key] = held;
+    var got = countItems(held);
+    lines += '<span class="why"><b class="flash">' + esc(fight.prize) + '</b> を手に入れた！（' +
+             got + ' / ' + game.itemsPerArea + '）' +
+             (got >= game.itemsPerArea
+               ? ' 3つそろった。<b class="warn">' + esc(fight.area.boss) + '</b> に挑める。'
+               : '') + '</span>';
+  }
 
   var grown = levelFor(game.me.exp);
   if (grown > game.me.level) {
@@ -911,12 +1304,12 @@ function win() {
     lines += '<span class="why">レベルが ' + grown + ' に あがった！ HPが全回復した。</span>';
   }
 
-  if (fight.isBoss && game.me.skills.indexOf(fight.area.skill) === -1) {
+  if (fight.kind === 'boss' && game.me.skills.indexOf(fight.area.skill) === -1) {
     game.me.skills.push(fight.area.skill);
     lines += '<span class="why">スキル「<b class="flash">' + esc(fight.area.skill) +
              '</b>」を習得した！' +
-             (game.route + 1 < game.areas.length
-               ? ' 「' + esc(game.areas[game.route + 1].key) + '」へ進めるようになった。' : '') +
+             (game.area + 1 < game.areas.length
+               ? ' 「' + esc(game.areas[game.area + 1].key) + '」へ進めるようになった。' : '') +
              '</span>';
   }
 
@@ -925,8 +1318,8 @@ function win() {
   el('q-genre').textContent = '';
   el('q-say').innerHTML = lines;
   el('q-after').style.display = 'flex';
-  el('btn-next').textContent = 'ルートにもどる';
-  el('btn-next').onclick = function () { openRoute(game.route); };
+  el('btn-next').textContent = '地図にもどる';
+  el('btn-next').onclick = backToMap;
 
   game.fight = null;
   paintStatus();
@@ -935,11 +1328,12 @@ function win() {
 
 function lose() {
   var fight = game.fight;
+  stopClock();
   game.fight = null;
 
   el('q-picks').innerHTML = '';
   el('q-say').innerHTML = '<span class="warn">HPが 0 になった。基地局に撤退する。</span>' +
-    '<span class="why">経験値と、ここまで倒したぶんの進行はそのまま残ります。</span>';
+    '<span class="why">経験値と、手に入れたアイテムはそのまま残ります。</span>';
   el('q-after').style.display = 'flex';
   el('btn-next').textContent = '基地局にもどる';
   el('btn-next').onclick = openBase;
@@ -947,7 +1341,7 @@ function lose() {
   game.pendingLog.push({
     area: fight.area.key,
     questionId: fight.question.id,
-    misses: fight.misses,
+    misses: fight.misses + (fight.timedOut ? 1 : 0),
     seconds: (Date.now() - fight.askedAt) / 1000,
     cleared: false
   });
@@ -1166,6 +1560,54 @@ var DEMO_AREAS = [
   { key: 'アンテナ',     boss: '定在波のぬし',   skill: '空中線調整', shape: 'tower', hue: 150 }
 ];
 
+var DEMO_MAPS = {
+  '電波の基礎': {
+    title: '電離層のそら',
+    grid: [
+      '#############',
+      '#S...,,,...1#',
+      '#.###,,,###.#',
+      '#.,,,,,,,,,.#',
+      '#2,,,##B##,,#',
+      '#.,,,,,,,,,.#',
+      '#.###,,,###.#',
+      '#...,,,,,..3#',
+      '#############'
+    ],
+    items: ['波長のものさし', '電離層のかけら', '伝搬図']
+  },
+  '運用と通信術': {
+    title: 'こうしん所',
+    grid: [
+      '#############',
+      '#S.........,#',
+      '#,#######,#,#',
+      '#,,,,1,,,,#,#',
+      '#,####,,##,,#',
+      '#,,,,#B#,,,,#',
+      '#,###,#,###,#',
+      '#2,,,,,,,,,3#',
+      '#############'
+    ],
+    items: ['Q符号帳', 'フォネティック表', 'ログ帳']
+  },
+  'アンテナ': {
+    title: 'アンテナ山',
+    grid: [
+      '#############',
+      '#S,,#,,,#,,,#',
+      '#,,,#,1,#,,,#',
+      '#,#,,,,,,,#,#',
+      '#,#,##B##,#,#',
+      '#,,,,#,#,,,,#',
+      '#2##,,,,,##3#',
+      '#,,,,,,,,,,,#',
+      '#############'
+    ],
+    items: ['SWR計', '同軸ケーブル', 'エレメント']
+  }
+};
+
 var DEMO_MOBS = [
   { name: 'ノイズスライム', shape: 'blob',  tier: 1 },
   { name: 'フェージング',   shape: 'wisp',  tier: 2 },
@@ -1177,6 +1619,7 @@ function boot() {
   if (!server) {
     game.online = false;
     game.areas = DEMO_AREAS;
+    game.maps = DEMO_MAPS;
     game.mobs = DEMO_MOBS;
     game.questions = DEMO_QUESTIONS;
     game.ready = true;
@@ -1194,7 +1637,8 @@ function boot() {
       }
       game.online = true;
       game.areas = res.areas;
-      game.nodesPerArea = res.nodesPerArea;
+      game.maps = res.maps || {};
+      game.itemsPerArea = res.itemsPerArea || 3;
       game.mobs = res.mobs;
       game.questions = res.questions;
       game.rules = res.rules;
@@ -1206,6 +1650,7 @@ function boot() {
     .withFailureHandler(function () {
       game.online = false;
       game.areas = DEMO_AREAS;
+      game.maps = DEMO_MAPS;
       game.mobs = DEMO_MOBS;
       game.questions = DEMO_QUESTIONS;
       game.ready = true;
@@ -1253,7 +1698,9 @@ function startWith(me) {
 // ===== つなぎこみ =====
 el('btn-enter').addEventListener('click', enter);
 el('in-handle').addEventListener('keydown', function (e) { if (e.key === 'Enter') enter(); });
-el('btn-advance').addEventListener('click', advance);
+document.querySelectorAll('.pad button[data-step]').forEach(function (button) {
+  button.addEventListener('click', function () { walk(button.dataset.step); });
+});
 el('btn-reload-roster').addEventListener('click', openRoster);
 el('btn-submit').addEventListener('click', submitPost);
 
@@ -1266,8 +1713,14 @@ document.querySelectorAll('[data-go]').forEach(function (button) {
   });
 });
 
-// バトル中は 1〜4 キーでも答えられる
+// 地図では矢印キーとWASDで歩き、バトル中は 1〜4 キーで答えられる
 document.addEventListener('keydown', function (e) {
+  if (el('v-map').classList.contains('on')) {
+    var dir = STEP_KEYS[e.key];
+    if (dir) { e.preventDefault(); walk(dir); }
+    return;
+  }
+
   if (!el('v-battle').classList.contains('on')) return;
   var n = Number(e.key);
   if (n >= 1 && n <= 4) {
