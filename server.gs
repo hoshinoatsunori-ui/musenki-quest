@@ -1,6 +1,6 @@
 /*
   無線クエスト2
-  Version 2.3
+  Version 2.4
 */
 
 // ===== シート定義 =====
@@ -44,6 +44,12 @@ const AREAS = [
   { key: 'IoT無線とLTE-M', boss: 'テール電流の魔', skill: '低消費電力設計', shape: 'wisp', hue: 320 },
   { key: '電波法規',     boss: '条文の守護者',   skill: '法令遵守',   shape: 'golem',   hue: 0   }
 ];
+
+/**
+ * エリアを持たないジャンル。息抜きとして、どのエリアの戦闘にも混ざって出てきます。
+ * ここに名前を足せば、問題シート側でも同じ名前が使えるようになります。
+ */
+const BONUS_GENRES = ['いっぱんクイズ', 'なぞなぞ'];
 
 /** 1エリアで集めるアイテムの数。3つそろうとボスに挑める。 */
 const ITEMS_PER_AREA = 3;
@@ -187,6 +193,7 @@ function bootstrap(handle) {
     return {
       ok: true,
       areas: AREAS,
+      bonusGenres: BONUS_GENRES,
       maps: AREA_MAPS,
       itemsPerArea: ITEMS_PER_AREA,
       mobs: MOBS,
@@ -282,9 +289,9 @@ function submitQuestion(draft) {
     if (!name) return { ok: false, reason: 'ハンドルが未設定です' };
 
     const area = cleanText_(draft && draft.area, 30);
-    if (!AREAS.some(function (a) { return a.key === area; })) {
-      return { ok: false, reason: 'ジャンルを選んでください' };
-    }
+    const knownGenre = AREAS.some(function (a) { return a.key === area; }) ||
+                       BONUS_GENRES.indexOf(area) !== -1;
+    if (!knownGenre) return { ok: false, reason: 'ジャンルを選んでください' };
 
     const level = toRange_(draft && draft.level, 1, 3, 1);
     const text = cleanText_(draft && draft.text, 300);
@@ -421,7 +428,9 @@ function shapeQuestion_(id, area, level, text, rawChoices, answer, note, author)
   if (!body) return null;
 
   const genre = cleanText_(area, 30);
-  if (!AREAS.some(function (a) { return a.key === genre; })) return null;
+  const known = AREAS.some(function (a) { return a.key === genre; }) ||
+                BONUS_GENRES.indexOf(genre) !== -1;
+  if (!known) return null;
 
   const choices = rawChoices.map(function (choice) { return cleanText_(choice, 120); });
   if (choices.some(function (choice) { return !choice; })) return null;

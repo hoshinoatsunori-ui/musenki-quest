@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.3
+  Version 2.4
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -635,6 +635,7 @@ var game = {
   online: false,
   ready: false,
   areas: [],
+  bonusGenres: ['いっぱんクイズ', 'なぞなぞ'],
   maps: {},
   itemsPerArea: 3,
   mobs: [],
@@ -1413,10 +1414,14 @@ function hideAsk() {
 // ===== 出題の選び方 =====
 
 function pickQuestion(areaKey, tier) {
-  // ときどき、耳をつかう問題を混ぜる
+  // ときどき、耳をつかう問題や息抜きの問題を混ぜる
   var roll = Math.random();
-  if (roll < 0.09) return makeMorseQuestion(areaKey);
-  if (roll < 0.16) return makePhoneticQuestion(areaKey);
+  if (roll < 0.07) return makeMorseQuestion(areaKey);
+  if (roll < 0.12) return makePhoneticQuestion(areaKey);
+  if (roll < 0.20) {
+    var side = pickFromGenres(game.bonusGenres);
+    if (side) return side;
+  }
 
   var inArea = game.questions.filter(function (q) { return q.area === areaKey; });
   if (!inArea.length) return null;
@@ -1426,6 +1431,22 @@ function pickQuestion(areaKey, tier) {
 
   var matched = fresh.filter(function (q) { return q.level === tier; });
   var pool = matched.length ? matched : fresh;
+
+  var picked = pool[Math.floor(Math.random() * pool.length)];
+  game.usedIds[picked.id] = true;
+  return picked;
+}
+
+// エリアに属さないジャンル（いっぱんクイズ・なぞなぞ）から1問選ぶ
+function pickFromGenres(genres) {
+  if (!genres || !genres.length) return null;
+  var pool = game.questions.filter(function (q) {
+    return genres.indexOf(q.area) !== -1 && !game.usedIds[q.id];
+  });
+  if (!pool.length) {
+    pool = game.questions.filter(function (q) { return genres.indexOf(q.area) !== -1; });
+  }
+  if (!pool.length) return null;
 
   var picked = pool[Math.floor(Math.random() * pool.length)];
   game.usedIds[picked.id] = true;
@@ -2188,8 +2209,9 @@ function drawRoster() {
 // ===== 投稿 =====
 function buildPostForm() {
   var areaBox = el('in-area');
-  areaBox.innerHTML = game.areas.map(function (area) {
-    return '<option value="' + esc(area.key) + '">' + esc(area.key) + '</option>';
+  var names = game.areas.map(function (area) { return area.key; }).concat(game.bonusGenres);
+  areaBox.innerHTML = names.map(function (name) {
+    return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
   }).join('');
 
   el('post-exp').textContent = game.rules.postExp;
@@ -2288,6 +2310,13 @@ var DEMO_AREAS = [
   { key: 'アンテナ',     boss: '定在波のぬし',   skill: '空中線調整', shape: 'tower', hue: 150 }
 ];
 
+var DEMO_SIDE = [
+  { id: 'DG1', area: 'いっぱんクイズ', level: 1, text: '太陽系でいちばん大きい惑星はどれですか。',
+    choices: ['地球', '土星', '木星', '海王星'], answer: 2, note: '直径は地球のおよそ11倍あります。' },
+  { id: 'DR1', area: 'なぞなぞ', level: 1, text: 'パンはパンでも、食べられないパンはなに？',
+    choices: ['あんパン', '食パン', 'フライパン', 'カレーパン'], answer: 2, note: '料理に使うほうのパンでした。' }
+];
+
 var DEMO_MAPS = {
   '電波の基礎': {
     title: 'オーストラリア大陸',
@@ -2356,7 +2385,7 @@ function boot() {
     game.areas = DEMO_AREAS;
     game.maps = DEMO_MAPS;
     game.mobs = DEMO_MOBS;
-    game.questions = DEMO_QUESTIONS;
+    game.questions = DEMO_QUESTIONS.concat(DEMO_SIDE);
     game.ready = true;
     el('gate-note').textContent = 'おためしモード（記録は保存されません）';
     el('btn-enter').disabled = false;
@@ -2372,6 +2401,7 @@ function boot() {
       }
       game.online = true;
       game.areas = res.areas;
+      game.bonusGenres = res.bonusGenres || game.bonusGenres;
       game.maps = res.maps || {};
       game.itemsPerArea = res.itemsPerArea || 3;
       game.mobs = res.mobs;
@@ -2388,7 +2418,7 @@ function boot() {
       game.areas = DEMO_AREAS;
       game.maps = DEMO_MAPS;
       game.mobs = DEMO_MOBS;
-      game.questions = DEMO_QUESTIONS;
+      game.questions = DEMO_QUESTIONS.concat(DEMO_SIDE);
       game.ready = true;
       el('gate-note').textContent = '通信できないため、おためしモードで あそべます';
       el('btn-enter').disabled = false;
