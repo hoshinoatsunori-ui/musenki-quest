@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.4
+  Version 2.5
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -227,6 +227,43 @@
   .legend span { display: flex; align-items: center; gap: 5px; }
   .legend b { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
 
+  /* ===== 戦闘画面のレイアウト =====
+     横長の画面では、敵と問題を左右に並べて縦の高さを抑える。
+     ノートPCの画面でも「つぎへ」が見切れないようにするため。 */
+  .duel { display: grid; gap: 14px; }
+  .duel > .frame { margin-bottom: 0; }
+
+  /* 地図も、横長の画面では十字ボタンを右に置いて縦を抑える */
+  .trek { display: grid; gap: 14px; }
+
+  @media (min-width: 900px) {
+    #stage.wide { max-width: 1120px; }
+    .duel { grid-template-columns: minmax(300px, 380px) 1fr; align-items: start; }
+    .trek { grid-template-columns: 1fr 210px; align-items: start; }
+    .trek .pad { margin-top: 10px; justify-content: start; }
+    .trek .btn-row { justify-content: start; }
+  }
+
+  /* 画面が低いときは、余白と絵を詰めて1画面に収める */
+  @media (max-height: 860px) {
+    .frame { padding: 12px 15px; margin-bottom: 11px; }
+    .arena { padding: 6px 0 4px; }
+    .foe-svg { width: 138px; height: 138px; }
+    .foe-name { margin-top: 3px; font-size: 14px; }
+    .clock { margin-bottom: 9px; }
+    .qbody { font-size: 16px; margin: 6px 0 10px; line-height: 1.7; }
+    .pick { padding: 8px 12px; }
+    .picks { gap: 7px; }
+    .say { margin-top: 10px; }
+    .gap { margin-top: 10px; }
+  }
+
+  @media (max-height: 700px) {
+    .foe-svg { width: 112px; height: 112px; }
+    .qbody { font-size: 15px; }
+    .pick { padding: 7px 11px; }
+  }
+
   /* ===== 確認メニュー ===== */
   #ask {
     position: fixed; inset: 0; z-index: 90;
@@ -431,26 +468,32 @@
 
     <div class="frame">
       <h2 id="map-title">エリア</h2>
-      <div class="map-wrap" id="map-canvas"></div>
 
-      <div class="legend" id="map-legend"></div>
+      <div class="trek">
+        <div>
+          <div class="map-wrap" id="map-canvas"></div>
+          <div class="legend" id="map-legend"></div>
+        </div>
 
-      <p id="map-note" class="hint gap"></p>
+        <div>
+          <p id="map-note" class="hint"></p>
 
-      <div class="pad">
-        <div class="blank"></div>
-        <button data-step="up" aria-label="うえ">&#9650;</button>
-        <div class="blank"></div>
-        <button data-step="left" aria-label="ひだり">&#9664;</button>
-        <div class="blank"></div>
-        <button data-step="right" aria-label="みぎ">&#9654;</button>
-        <div class="blank"></div>
-        <button data-step="down" aria-label="した">&#9660;</button>
-        <div class="blank"></div>
-      </div>
+          <div class="pad">
+            <div class="blank"></div>
+            <button data-step="up" aria-label="うえ">&#9650;</button>
+            <div class="blank"></div>
+            <button data-step="left" aria-label="ひだり">&#9664;</button>
+            <div class="blank"></div>
+            <button data-step="right" aria-label="みぎ">&#9654;</button>
+            <div class="blank"></div>
+            <button data-step="down" aria-label="した">&#9660;</button>
+            <div class="blank"></div>
+          </div>
 
-      <div class="btn-row gap">
-        <button class="btn quiet" data-go="base">基地局にもどる</button>
+          <div class="btn-row gap">
+            <button class="btn quiet" data-go="base">基地局にもどる</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -461,6 +504,7 @@
       <div class="status" id="fight-status"></div>
     </div>
 
+    <div class="duel">
     <div class="frame">
       <div class="arena">
         <div class="pop" id="pop"></div>
@@ -493,6 +537,7 @@
         <button id="btn-next" class="btn go"></button>
         <button id="btn-flee" class="btn quiet" style="display:none">はなれる</button>
       </div>
+    </div>
     </div>
   </section>
 
@@ -739,6 +784,8 @@ function show(name) {
   ['gate', 'base', 'map', 'battle', 'roster', 'post', 'insight', 'mine', 'raid'].forEach(function (key) {
     el('v-' + key).classList.toggle('on', key === name);
   });
+  // 戦闘だけは横に広く使い、敵と問題を左右に並べる
+  el('stage').classList.toggle('wide', name === 'battle' || name === 'map');
   window.scrollTo(0, 0);
 }
 
@@ -1720,7 +1767,7 @@ function answer(index) {
   if (fight.kind === 'raid') {
     game.raidDealt += blow;
     if (fight.hp <= 0) { setTimeout(endRaidRun, 620); return; }
-    el('q-after').style.display = 'flex';
+    revealAfter();
     el('btn-flee').style.display = 'inline-block';
     el('btn-next').textContent = 'つぎの問題へ';
     el('btn-next').onclick = nextQuestion;
@@ -1729,9 +1776,25 @@ function answer(index) {
 
   if (fight.hp <= 0) { setTimeout(win, 620); return; }
 
-  el('q-after').style.display = 'flex';
+  revealAfter();
   el('btn-next').textContent = 'つぎの問題へ';
   el('btn-next').onclick = nextQuestion;
+}
+
+// 「つぎへ」を出すときは、画面の外に出ないところまで送る。
+// 低い画面でボタンを見落とさないようにするため、はみ出した分だけ正確に動かす。
+function revealAfter() {
+  var box = el('q-after');
+  box.style.display = 'flex';
+
+  setTimeout(function () {
+    var over = box.getBoundingClientRect().bottom - window.innerHeight + 16;
+    if (over <= 0) return;
+    if (window.scrollBy) {
+      try { window.scrollBy({ top: over, behavior: 'smooth' }); return; } catch (e) { /* 下へ */ }
+    }
+    window.scrollTo(0, window.pageYOffset + over);
+  }, 30);
 }
 
 function nextQuestion() {
@@ -1763,7 +1826,7 @@ function endRaidRun() {
   el('q-genre').textContent = '';
   el('q-say').innerHTML = '<span class="flash">レイドから もどった。あたえたダメージ ' + dealt + '</span>' +
     '<span class="why">みんなのダメージと合わせて集計されます。</span>';
-  el('q-after').style.display = 'flex';
+  revealAfter();
   el('btn-next').textContent = 'レイド画面へ';
   el('btn-next').onclick = function () { flushRaid(); openRaid(); };
 
@@ -1840,7 +1903,7 @@ function win() {
   el('q-body').textContent = '';
   el('q-genre').textContent = '';
   el('q-say').innerHTML = lines;
-  el('q-after').style.display = 'flex';
+  revealAfter();
   el('btn-next').textContent = '地図にもどる';
   el('btn-next').onclick = backToMap;
 
@@ -1860,7 +1923,7 @@ function lose() {
     game.hp = game.maxHp;
     el('q-picks').innerHTML = '';
     el('q-say').innerHTML = '<span class="warn">力つきた。あたえたダメージ ' + game.raidDealt + ' は 記録される。</span>';
-    el('q-after').style.display = 'flex';
+    revealAfter();
     el('btn-flee').style.display = 'none';
     el('btn-next').textContent = 'レイド画面へ';
     el('btn-next').onclick = function () { flushRaid(); openRaid(); };
@@ -1874,7 +1937,7 @@ function lose() {
   el('q-picks').innerHTML = '';
   el('q-say').innerHTML = '<span class="warn">HPが 0 になった。基地局に撤退する。</span>' +
     '<span class="why">経験値と、手に入れたアイテムはそのまま残ります。</span>';
-  el('q-after').style.display = 'flex';
+  revealAfter();
   el('btn-next').textContent = '基地局にもどる';
   el('btn-next').onclick = openBase;
 
