@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.5
+  Version 2.6
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -72,28 +72,84 @@
     padding-bottom: 8px;
   }
 
-  /* ===== タイトル ===== */
-  .logo {
-    text-align: center;
-    font-size: clamp(30px, 8vw, 50px);
-    letter-spacing: .16em;
-    margin: 26px 0 2px;
-    font-weight: 800;
-    color: var(--ink);
-    text-shadow: 0 0 18px rgba(56,224,208,.55), 3px 3px 0 #16233f;
-  }
-  .tagline { text-align: center; color: var(--dim); letter-spacing: .3em; margin-bottom: 20px; font-size: 12px; }
+  /* ===== タイトル画面 =====
+     ファミコンのタイトルらしく、平らな青地に紋章とメニューだけを置く。
+     画像は使わず、紋章はSVG、縁取りは text-shadow で作っている。 */
+  body.at-title { background: #4b5b82; }
 
-  /* 電波が広がるアニメーション */
-  .beacon { display: block; margin: 0 auto 10px; }
-  .beacon circle { fill: none; stroke: var(--signal); stroke-width: 2; transform-origin: 60px 62px; }
-  .beacon .r1 { animation: ping 2.4s linear infinite; }
-  .beacon .r2 { animation: ping 2.4s linear infinite .8s; }
-  .beacon .r3 { animation: ping 2.4s linear infinite 1.6s; }
-  @keyframes ping {
-    from { transform: scale(.25); opacity: .9; }
-    to   { transform: scale(1.5); opacity: 0; }
+  .title-screen { text-align: center; padding: 8px 0 24px; }
+
+  .emblem {
+    display: block;
+    width: min(340px, 82vw);
+    height: auto;
+    margin: 4px auto -6px;
   }
+
+  .title-jp {
+    margin: 0 0 22px;
+    font-size: clamp(38px, 11vw, 72px);
+    font-weight: 900;
+    letter-spacing: .04em;
+    color: #ffffff;
+    text-shadow:
+       3px 0 0 #14203a, -3px 0 0 #14203a, 0 3px 0 #14203a, 0 -3px 0 #14203a,
+       3px 3px 0 #14203a, -3px 3px 0 #14203a, 3px -3px 0 #14203a, -3px -3px 0 #14203a,
+       0 7px 0 rgba(10,16,30,.55);
+  }
+  .title-jp .title-two { color: #f0c04a; margin-left: .06em; }
+
+  .menu, .speed { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .speed { flex-direction: row; justify-content: center; gap: clamp(10px, 4vw, 40px); }
+
+  .menu-row, .speed-row {
+    background: none; border: none; cursor: pointer;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: clamp(19px, 4.6vw, 27px);
+    font-weight: 700;
+    letter-spacing: .18em;
+    color: #ffffff;
+    padding: 3px 6px;
+    text-shadow: 2px 2px 0 #14203a;
+  }
+  .speed-row { font-size: clamp(15px, 3.6vw, 21px); color: #f0c04a; }
+
+  /* カーソルは、選ばれている行にだけ出す */
+  .menu-row .cur, .speed-row .cur {
+    display: inline-block; width: 1.1em; margin-left: -1.1em;
+    color: #f0c04a; opacity: 0;
+  }
+  .menu-row.on .cur, .speed-row.on .cur { opacity: 1; animation: blip 1s steps(2) infinite; }
+  @keyframes blip { 0%, 60% { opacity: 1; } 61%, 100% { opacity: .25; } }
+
+  .speed-label {
+    margin: 20px 0 8px;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: clamp(14px, 3.4vw, 19px);
+    letter-spacing: .22em;
+    color: #ffffff;
+    text-shadow: 2px 2px 0 #14203a;
+  }
+
+  .copy {
+    margin-top: 22px;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: clamp(12px, 3vw, 17px);
+    letter-spacing: .12em;
+    color: #ffffff;
+    text-shadow: 2px 2px 0 #14203a;
+  }
+  .copy span { color: #c9a0ff; }
+
+  .gate-form {
+    max-width: 380px;
+    margin: 20px auto 0;
+    background: rgba(10, 18, 36, .82);
+    border-color: #d9b46a;
+  }
+  .gate-form[hidden] { display: none; }
+
+  body.at-title #gate-note { color: #dfe7f5; text-shadow: 1px 1px 0 #14203a; }
 
   /* ===== 入力 ===== */
   label.lead { display: block; color: var(--dim); font-size: 12px; letter-spacing: .1em; margin-bottom: 5px; }
@@ -407,25 +463,78 @@
 <body>
 <div id="stage">
 
-  <!-- ===== 入口 ===== -->
+  <!-- ===== タイトル ===== -->
   <section id="v-gate" class="view on">
-    <h1 class="logo">無線クエスト2</h1>
-    <p class="tagline">RADIO QUEST II</p>
-    <svg class="beacon" width="120" height="86" viewBox="0 0 120 86" aria-hidden="true">
-      <circle class="r1" cx="60" cy="62" r="18"></circle>
-      <circle class="r2" cx="60" cy="62" r="18"></circle>
-      <circle class="r3" cx="60" cy="62" r="18"></circle>
-      <path d="M60 14 L60 62 M60 62 L40 74 M60 62 L80 74" stroke="#eaf2ff" stroke-width="3" fill="none"></path>
-      <circle cx="60" cy="12" r="4" fill="#ffc94a"></circle>
-    </svg>
+    <div class="title-screen">
 
-    <div class="frame">
-      <div class="field">
-        <label class="lead" for="in-handle">ハンドル（コールサインでも可）</label>
-        <input id="in-handle" type="text" maxlength="16" placeholder="JA1ABC" autocomplete="off">
+      <svg class="emblem" viewBox="0 0 260 152" aria-label="無線クエストの紋章">
+        <!-- 交差した はんだごて（左）と ドライバー（右）。柄は外側の上に、先は盾の裏へ -->
+        <path d="M20 20 L58 58" stroke="#8a5c33" stroke-width="17" stroke-linecap="round"/>
+        <path d="M56 56 L66 66" stroke="#4a3320" stroke-width="17"/>
+        <path d="M64 64 L112 112" stroke="#c6d2e6" stroke-width="9" stroke-linecap="round"/>
+        <path d="M20 20 L30 30" stroke="#5e3d1f" stroke-width="17" stroke-linecap="round"/>
+
+        <path d="M240 20 L202 58" stroke="#8a5c33" stroke-width="17" stroke-linecap="round"/>
+        <path d="M204 56 L194 66" stroke="#4a3320" stroke-width="17"/>
+        <path d="M196 64 L148 112" stroke="#dfe7f5" stroke-width="9" stroke-linecap="round"/>
+        <path d="M240 20 L230 30" stroke="#5e3d1f" stroke-width="17" stroke-linecap="round"/>
+
+        <!-- 回路のパターン -->
+        <g stroke="#7ee0a0" stroke-width="2" fill="none" stroke-linecap="square">
+          <path d="M74 62 H58 V46 H48"/>
+          <path d="M74 100 H54 V116 H42"/>
+          <path d="M186 62 H202 V46 H212"/>
+          <path d="M186 100 H206 V116 H218"/>
+        </g>
+        <g fill="#7ee0a0">
+          <rect x="44" y="42" width="7" height="7"/><rect x="38" y="112" width="7" height="7"/>
+          <rect x="209" y="42" width="7" height="7"/><rect x="215" y="112" width="7" height="7"/>
+        </g>
+
+        <!-- 盾 -->
+        <path d="M130 12 L180 28 V78 C180 108 156 126 130 136 C104 126 80 108 80 78 V28 Z"
+              fill="#33528f" stroke="#0f1a2e" stroke-width="7"/>
+        <path d="M130 12 L180 28 V78 C180 108 156 126 130 136 C104 126 80 108 80 78 V28 Z"
+              fill="none" stroke="#d9b46a" stroke-width="4.5"/>
+
+        <!-- 電波塔 -->
+        <path d="M113 108 L130 58 L147 108" fill="none" stroke="#e6edfa" stroke-width="3.4"/>
+        <path d="M118 96 H142 M122 84 H138 M126 72 H134" stroke="#e6edfa" stroke-width="2.6"/>
+        <path d="M118 96 L130 84 L142 96 M122 84 L130 72 L138 84"
+              fill="none" stroke="#9fb3d1" stroke-width="1.8"/>
+        <path d="M130 58 V50" stroke="#e6edfa" stroke-width="3"/>
+        <path d="M107 34 q-8 12 0 24 M119 40 q-4 6 0 12" fill="none"
+              stroke="#f0c04a" stroke-width="3" stroke-linecap="round"/>
+        <path d="M153 34 q8 12 0 24 M141 40 q4 6 0 12" fill="none"
+              stroke="#f0c04a" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="130" cy="47" r="4.4" fill="#f0c04a"/>
+      </svg>
+
+      <h1 class="title-jp">無線クエスト<span class="title-two">2</span></h1>
+
+      <div class="menu" id="title-menu">
+        <button class="menu-row" data-pick="start"><span class="cur">&#9654;</span>START</button>
+        <button class="menu-row" data-pick="continue"><span class="cur">&#9654;</span>CONTINUE</button>
       </div>
-      <button id="btn-enter" class="btn go wide" disabled>交信をはじめる</button>
-      <p id="gate-note" class="hint center gap">よみこみ中...</p>
+
+      <div class="speed-label">-MESSAGE SPEED-</div>
+      <div class="speed" id="title-speed">
+        <button class="speed-row" data-speed="slow"><span class="cur">&#9654;</span>SLOW</button>
+        <button class="speed-row" data-speed="normal"><span class="cur">&#9654;</span>NORMAL</button>
+        <button class="speed-row" data-speed="fast"><span class="cur">&#9654;</span>FAST</button>
+      </div>
+
+      <div class="copy">(C)1987 / 2026 <span>MUSEN QUEST</span></div>
+
+      <div class="frame gate-form" id="gate-form" hidden>
+        <div class="field">
+          <label class="lead" for="in-handle">なまえ を いれてください（コールサインでも可）</label>
+          <input id="in-handle" type="text" maxlength="16" placeholder="JA1ABC" autocomplete="off">
+        </div>
+        <button id="btn-enter" class="btn go wide" disabled>けってい</button>
+      </div>
+
+      <p id="gate-note" class="hint center gap">よみこみちゅう...</p>
     </div>
   </section>
 
@@ -786,6 +895,7 @@ function show(name) {
   });
   // 戦闘だけは横に広く使い、敵と問題を左右に並べる
   el('stage').classList.toggle('wide', name === 'battle' || name === 'map');
+  document.body.classList.toggle('at-title', name === 'gate');
   window.scrollTo(0, 0);
 }
 
@@ -1557,8 +1667,8 @@ function startBattle(kind, slot) {
   var appear = kind === 'boss' ? ' が 電波塔のてっぺんで まちかまえていた！'
              : (kind === 'retake' ? ' が 電波塔を のっとっている！ 取りかえせ！'
              : (kind === 'mimic' ? ' が たからばこ から とびだした！' : ' が あらわれた！'));
-  el('q-say').innerHTML = '<span class="' + (kind === 'boss' ? 'warn' : 'flash') + '">' +
-    esc(mob.name) + appear + '</span>';
+  typeOut(el('q-say'), '<span class="' + (kind === 'boss' ? 'warn' : 'flash') + '">' +
+    esc(mob.name) + appear + '</span>');
 
   askQuestion(question);
   paintStatus();
@@ -1619,9 +1729,9 @@ function timeUp() {
 
   if (game.hp <= 0) { lose(); return; }
 
-  el('q-say').innerHTML = '<span class="warn">時間切れ！ ' + esc(fight.name) +
+  typeOut(el('q-say'), '<span class="warn">時間切れ！ ' + esc(fight.name) +
     ' の こうげき！ ' + fight.atk + ' のダメージ</span>' +
-    '<span class="why">答えは まだ えらべます。ダメージは いちばん小さくなります。</span>';
+    '<span class="why">答えは まだ えらべます。ダメージは いちばん小さくなります。</span>');
 }
 
 function askQuestion(question) {
@@ -1684,6 +1794,7 @@ function drawQuestion(question) {
 function answer(index) {
   var fight = game.fight;
   if (!fight || fight.settled) return;
+  finishTyping();
 
   var question = fight.question;
   var buttons = el('q-picks').querySelectorAll('.pick');
@@ -1703,9 +1814,9 @@ function answer(index) {
 
     if (game.hp <= 0) { lose(); return; }
 
-    el('q-say').innerHTML = '<span class="warn">ちがう！ ' + esc(fight.name) +
+    typeOut(el('q-say'), '<span class="warn">ちがう！ ' + esc(fight.name) +
       ' の こうげき！ ' + fight.atk + ' のダメージ</span>' +
-      '<span class="why">もういちど えらべます。時計は止まりません。</span>';
+      '<span class="why">もういちど えらべます。時計は止まりません。</span>');
     return;
   }
 
@@ -1762,7 +1873,7 @@ function answer(index) {
   if (game.combo >= 2) head += '<span class="combo">' + game.combo + ' れんぞく正解！</span>';
   var line = head + '<span class="why">' + esc(why.join(' / ')) + '</span>';
   if (question.note) line += '<span class="why">' + esc(question.note) + '</span>';
-  el('q-say').innerHTML = line;
+  typeOut(el('q-say'), line);
 
   if (fight.kind === 'raid') {
     game.raidDealt += blow;
@@ -1783,18 +1894,22 @@ function answer(index) {
 
 // 「つぎへ」を出すときは、画面の外に出ないところまで送る。
 // 低い画面でボタンを見落とさないようにするため、はみ出した分だけ正確に動かす。
-function revealAfter() {
+function nudgeAfter() {
   var box = el('q-after');
-  box.style.display = 'flex';
+  if (box.style.display === 'none') return;
 
-  setTimeout(function () {
-    var over = box.getBoundingClientRect().bottom - window.innerHeight + 16;
-    if (over <= 0) return;
-    if (window.scrollBy) {
-      try { window.scrollBy({ top: over, behavior: 'smooth' }); return; } catch (e) { /* 下へ */ }
-    }
-    window.scrollTo(0, window.pageYOffset + over);
-  }, 30);
+  var over = box.getBoundingClientRect().bottom - window.innerHeight + 16;
+  if (over <= 0) return;
+  if (window.scrollBy) {
+    try { window.scrollBy({ top: over, behavior: 'smooth' }); return; } catch (e) { /* 下へ */ }
+  }
+  window.scrollTo(0, window.pageYOffset + over);
+}
+
+function revealAfter() {
+  el('q-after').style.display = 'flex';
+  // メッセージを打っている間は高さが伸びるので、そのあとにもう一度そろえる
+  setTimeout(nudgeAfter, 30);
 }
 
 function nextQuestion() {
@@ -1807,7 +1922,7 @@ function nextQuestion() {
   var question = pickQuestion(fight.area.key, fight.tier);
   if (!question) { toast('出題できる問題が尽きました'); backToMap(); return; }
 
-  el('q-say').innerHTML = '';
+  typeOut(el('q-say'), '');
   askQuestion(question);
 }
 
@@ -1824,8 +1939,8 @@ function endRaidRun() {
   el('q-picks').innerHTML = '';
   el('q-body').textContent = '';
   el('q-genre').textContent = '';
-  el('q-say').innerHTML = '<span class="flash">レイドから もどった。あたえたダメージ ' + dealt + '</span>' +
-    '<span class="why">みんなのダメージと合わせて集計されます。</span>';
+  typeOut(el('q-say'), '<span class="flash">レイドから もどった。あたえたダメージ ' + dealt + '</span>' +
+    '<span class="why">みんなのダメージと合わせて集計されます。</span>');
   revealAfter();
   el('btn-next').textContent = 'レイド画面へ';
   el('btn-next').onclick = function () { flushRaid(); openRaid(); };
@@ -1902,7 +2017,7 @@ function win() {
   el('q-picks').innerHTML = '';
   el('q-body').textContent = '';
   el('q-genre').textContent = '';
-  el('q-say').innerHTML = lines;
+  typeOut(el('q-say'), lines);
   revealAfter();
   el('btn-next').textContent = '地図にもどる';
   el('btn-next').onclick = backToMap;
@@ -1922,7 +2037,7 @@ function lose() {
     game.fight = null;
     game.hp = game.maxHp;
     el('q-picks').innerHTML = '';
-    el('q-say').innerHTML = '<span class="warn">力つきた。あたえたダメージ ' + game.raidDealt + ' は 記録される。</span>';
+    typeOut(el('q-say'), '<span class="warn">力つきた。あたえたダメージ ' + game.raidDealt + ' は 記録される。</span>');
     revealAfter();
     el('btn-flee').style.display = 'none';
     el('btn-next').textContent = 'レイド画面へ';
@@ -1935,8 +2050,8 @@ function lose() {
   game.fight = null;
 
   el('q-picks').innerHTML = '';
-  el('q-say').innerHTML = '<span class="warn">HPが 0 になった。基地局に撤退する。</span>' +
-    '<span class="why">経験値と、手に入れたアイテムはそのまま残ります。</span>';
+  typeOut(el('q-say'), '<span class="warn">HPが 0 になった。基地局に撤退する。</span>' +
+    '<span class="why">経験値と、手に入れたアイテムはそのまま残ります。</span>');
   revealAfter();
   el('btn-next').textContent = '基地局にもどる';
   el('btn-next').onclick = openBase;
@@ -2192,7 +2307,7 @@ function startRaid() {
     '<div class="weak' + (game.me.skills.indexOf(weak.skill) !== -1 ? ' known' : '') + '">弱点：' +
     esc(weak.key) + '</div>';
   el('foe-bar').style.width = ((game.fight.hp / raid.maxHp) * 100) + '%';
-  el('q-say').innerHTML = '<span class="warn">' + esc(raid.name) + ' に いどむ！ みんなで削ろう。</span>';
+  typeOut(el('q-say'), '<span class="warn">' + esc(raid.name) + ' に いどむ！ みんなで削ろう。</span>');
 
   askQuestion(question);
   paintStatus();
@@ -2441,8 +2556,126 @@ var DEMO_MOBS = [
   { name: 'スプリアス',     shape: 'crystal', tier: 3 }
 ];
 
+// ===== タイトル画面 =====
+// カーソルは上下で動かし、決定で名前の入力へ進む。
+// MESSAGE SPEED は左右で選び、戦闘メッセージの出かたに効く。
+
+var MESSAGE_SPEEDS = { slow: 55, normal: 22, fast: 0 };
+var titlePick = 'start';
+var titleRow = 0;              // 0=メニュー 1=速度
+var titleIndex = 0;
+var speedName = 'normal';
+
+function paintTitle() {
+  var menu = el('title-menu').querySelectorAll('.menu-row');
+  var speeds = el('title-speed').querySelectorAll('.speed-row');
+
+  for (var i = 0; i < menu.length; i++) {
+    menu[i].classList.toggle('on', titleRow === 0 && i === titleIndex);
+  }
+  for (var j = 0; j < speeds.length; j++) {
+    var name = speeds[j].dataset.speed;
+    // 速度の行は、選ばれている速度に常にカーソルを置く
+    speeds[j].classList.toggle('on', name === speedName);
+  }
+}
+
+function moveTitle(step) {
+  if (titleRow === 0) {
+    titleIndex += step;
+    if (titleIndex < 0) { titleIndex = 0; }
+    if (titleIndex > 1) { titleRow = 1; titleIndex = 1; }
+  } else if (step < 0) {
+    titleRow = 0; titleIndex = 1;
+  }
+  paintTitle();
+}
+
+function shiftSpeed(step) {
+  var names = ['slow', 'normal', 'fast'];
+  var at = names.indexOf(speedName) + step;
+  speedName = names[Math.max(0, Math.min(names.length - 1, at))];
+  saveSpeed();
+  paintTitle();
+}
+
+function saveSpeed() {
+  try { window.localStorage.setItem('musen-speed', speedName); } catch (e) { /* 使えない環境もある */ }
+}
+
+function loadSpeed() {
+  try {
+    var kept = window.localStorage.getItem('musen-speed');
+    if (kept && MESSAGE_SPEEDS[kept] !== undefined) speedName = kept;
+  } catch (e) { /* 既定のまま */ }
+}
+
+function chooseTitle(pick) {
+  if (!game.ready) return;
+  titlePick = pick;
+  el('gate-form').hidden = false;
+
+  var field = el('in-handle');
+  if (pick === 'continue') {
+    try { field.value = window.localStorage.getItem('musen-handle') || ''; } catch (e) { /* そのまま */ }
+    el('gate-note').innerHTML = 'まえに あそんだ なまえ を いれてください。';
+  } else {
+    field.value = '';
+    el('gate-note').innerHTML = 'なまえ を きめて ください。' +
+      '<br><span class="hint">おなじ なまえ の きろく が あれば、そこから つづきます。</span>';
+  }
+  field.focus();
+}
+
+// ===== メッセージのタイプ表示 =====
+// HTMLの飾りは残したまま、文字だけを順に出す。
+// 出しかけの文は typing に持っておき、途中でも最後まで戻せるようにする。
+var typer = null;
+var typing = null;
+
+function typeOut(box, html) {
+  var pace = MESSAGE_SPEEDS[speedName];
+  finishTyping();
+  box.innerHTML = html;
+  if (!pace) return;
+
+  var parts = [];
+  (function walk(node) {
+    for (var child = node.firstChild; child; child = child.nextSibling) {
+      if (child.nodeType === 3) {
+        if (child.nodeValue) { parts.push({ node: child, text: child.nodeValue }); child.nodeValue = ''; }
+      } else if (child.nodeType === 1) {
+        walk(child);
+      }
+    }
+  })(box);
+  if (!parts.length) return;
+
+  typing = parts;
+  var at = 0, cut = 0;
+  typer = setInterval(function () {
+    if (at >= parts.length) { finishTyping(); nudgeAfter(); return; }
+    cut += 2;
+    parts[at].node.nodeValue = parts[at].text.slice(0, cut);
+    if (cut >= parts[at].text.length) { at++; cut = 0; }
+  }, pace);
+}
+
+// 途中でも、次の操作をしたら残りを一度に出しきる
+function finishTyping() {
+  if (typer) { clearInterval(typer); typer = null; }
+  if (!typing) return;
+  for (var i = 0; i < typing.length; i++) typing[i].node.nodeValue = typing[i].text;
+  typing = null;
+  nudgeAfter();
+}
+
 // ===== 起動 =====
 function boot() {
+  loadSpeed();
+  paintTitle();
+  show('gate');        // 背景と画面の状態を、最初からタイトルにそろえる
+
   if (!server) {
     game.online = false;
     game.areas = DEMO_AREAS;
@@ -2450,7 +2683,7 @@ function boot() {
     game.mobs = DEMO_MOBS;
     game.questions = DEMO_QUESTIONS.concat(DEMO_SIDE);
     game.ready = true;
-    el('gate-note').textContent = 'おためしモード（記録は保存されません）';
+    el('gate-note').textContent = 'おためしモード（きろくは ほぞんされません）。START を えらんでください';
     el('btn-enter').disabled = false;
     return;
   }
@@ -2483,7 +2716,7 @@ function boot() {
       game.mobs = DEMO_MOBS;
       game.questions = DEMO_QUESTIONS.concat(DEMO_SIDE);
       game.ready = true;
-      el('gate-note').textContent = '通信できないため、おためしモードで あそべます';
+      el('gate-note').textContent = 'つうしんできないため、おためしモードで あそべます';
       el('btn-enter').disabled = false;
     })
     .bootstrap('');
@@ -2512,6 +2745,7 @@ function enter() {
 }
 
 function startWith(me) {
+  try { window.localStorage.setItem('musen-handle', me.handle); } catch (e) { /* 使えない環境もある */ }
   me.progress = me.progress || {};
   me.skills = me.skills || [];
   me.cells = me.cells || 0;
@@ -2528,6 +2762,33 @@ function startWith(me) {
 }
 
 // ===== つなぎこみ =====
+// --- タイトル画面 ---
+el('title-menu').querySelectorAll('.menu-row').forEach(function (row, i) {
+  row.addEventListener('click', function () {
+    titleRow = 0; titleIndex = i; paintTitle();
+    chooseTitle(row.dataset.pick);
+  });
+});
+el('title-speed').querySelectorAll('.speed-row').forEach(function (row) {
+  row.addEventListener('click', function () {
+    speedName = row.dataset.speed; saveSpeed(); paintTitle();
+  });
+});
+
+document.addEventListener('keydown', function (e) {
+  if (!el('v-gate').classList.contains('on')) return;
+  if (document.activeElement === el('in-handle')) return;   // 入力中は邪魔しない
+
+  if (e.key === 'ArrowUp') { e.preventDefault(); moveTitle(-1); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); moveTitle(1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); shiftSpeed(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); shiftSpeed(1); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (titleRow === 0) chooseTitle(titleIndex === 0 ? 'start' : 'continue');
+  }
+});
+
 el('btn-enter').addEventListener('click', enter);
 el('in-handle').addEventListener('keydown', function (e) { if (e.key === 'Enter') enter(); });
 el('btn-cell').addEventListener('click', useCell);
