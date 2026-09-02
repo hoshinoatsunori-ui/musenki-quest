@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.6
+  Version 2.7
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -292,12 +292,63 @@
   /* 地図も、横長の画面では十字ボタンを右に置いて縦を抑える */
   .trek { display: grid; gap: 14px; }
 
+  /* 基地局は、エリア一覧を左、スキル・そうび・メニューを右に置く。
+     横に空いている場所を使って、スクロールせずに全部見えるようにするため。 */
+  .hub { display: grid; gap: 14px; }
+  .hub > .frame { margin-bottom: 0; }
+  .hub-side { display: flex; flex-direction: column; gap: 14px; }
+  .hub-side > .frame { margin-bottom: 0; }
+  .hub-menu { flex-direction: column; }
+  .hub-menu .btn { width: 100%; }
+
   @media (min-width: 900px) {
     #stage.wide { max-width: 1120px; }
     .duel { grid-template-columns: minmax(300px, 380px) 1fr; align-items: start; }
     .trek { grid-template-columns: 1fr 210px; align-items: start; }
     .trek .pad { margin-top: 10px; justify-content: start; }
     .trek .btn-row { justify-content: start; }
+    .hub { grid-template-columns: 1fr minmax(240px, 300px); align-items: start; }
+  }
+
+  /* 低い画面では、エリアの行を詰めて6つとも収める */
+  @media (max-height: 900px) {
+    .area { padding: 8px 12px; gap: 11px; grid-template-columns: 44px 1fr auto; }
+    .area svg { width: 44px; height: 39px; }
+    .area .name { font-size: 14px; }
+    .area .sub { font-size: 11.5px; }
+    .areas { gap: 9px; }
+    .relics { margin-top: 4px; }
+    .relics i { width: 9px; height: 9px; }
+    .hub-menu .btn { padding: 8px 16px; }
+    #skill-list .badge, #gear-list { font-size: 12px; }
+  }
+
+  /* ノートPCの高さでも、エリア6つとメニューが1画面に収まるところまで詰める */
+  @media (max-height: 800px) {
+    .area { padding: 6px 10px; gap: 9px; grid-template-columns: 38px 1fr auto; }
+    .area svg { width: 38px; height: 34px; }
+    .area .name { font-size: 13.5px; }
+    .area .sub { font-size: 11px; }
+    .areas { gap: 7px; }
+    .frame > h2 { margin-bottom: 8px; padding-bottom: 6px; font-size: 14px; }
+    .hub .hint { font-size: 11.5px; }
+    .hub-menu .btn { padding: 7px 14px; font-size: 14px; }
+    #skill-list .badge { font-size: 11px; }
+    #gear-list { font-size: 11.5px; line-height: 1.55; }
+  }
+
+  /* 720pxの高さでも収まるところまで。文言は削らず、余白と寸法だけを詰める */
+  @media (max-height: 740px) {
+    .frame { padding: 10px 13px; margin-bottom: 9px; }
+    .hub, .hub-side { gap: 10px; }
+    .area { padding: 5px 9px; grid-template-columns: 34px 1fr auto; }
+    .area svg { width: 34px; height: 30px; }
+    .areas { gap: 5px; }
+    .area .sub { font-size: 10.5px; }
+    .hub .hint { font-size: 11px; }
+    .hub-menu { gap: 7px; }
+    .hub-menu .btn { padding: 6px 12px; font-size: 13.5px; }
+    .relics { margin-top: 3px; }
   }
 
   /* 画面が低いときは、余白と絵を詰めて1画面に収める */
@@ -544,28 +595,32 @@
       <div class="status" id="base-status"></div>
     </div>
 
-    <div class="frame">
-      <h2>エリア</h2>
-      <div class="areas" id="area-list"></div>
-      <p class="hint gap">ボスに勝つと、そのジャンルのスキルを習得して次のエリアが開きます。</p>
-    </div>
+    <div class="hub">
+      <div class="frame">
+        <h2>エリア</h2>
+        <div class="areas" id="area-list"></div>
+        <p class="hint gap">ボスに勝つと、そのジャンルのスキルを習得して次のエリアが開きます。</p>
+      </div>
 
-    <div class="frame">
-      <h2>スキル</h2>
-      <div id="skill-list"></div>
-    </div>
+      <div class="hub-side">
+        <div class="frame">
+          <h2>スキル</h2>
+          <div id="skill-list"></div>
+        </div>
 
-    <div class="frame">
-      <h2>そうび</h2>
-      <div id="gear-list"></div>
-    </div>
+        <div class="frame">
+          <h2>そうび</h2>
+          <div id="gear-list"></div>
+        </div>
 
-    <div class="btn-row">
-      <button class="btn" data-go="roster">みんなの状況</button>
-      <button class="btn" data-go="raid">週替わりレイド</button>
-      <button class="btn" data-go="insight">じぶんの弱点</button>
-      <button class="btn" data-go="post">問題を投稿する</button>
-      <button class="btn" data-go="mine">投稿のせいせき</button>
+        <div class="btn-row hub-menu">
+          <button class="btn" data-go="roster">みんなの状況</button>
+          <button class="btn" data-go="raid">週替わりレイド</button>
+          <button class="btn" data-go="insight">じぶんの弱点</button>
+          <button class="btn" data-go="post">問題を投稿する</button>
+          <button class="btn" data-go="mine">投稿のせいせき</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -894,7 +949,7 @@ function show(name) {
     el('v-' + key).classList.toggle('on', key === name);
   });
   // 戦闘だけは横に広く使い、敵と問題を左右に並べる
-  el('stage').classList.toggle('wide', name === 'battle' || name === 'map');
+  el('stage').classList.toggle('wide', name === 'battle' || name === 'map' || name === 'base');
   document.body.classList.toggle('at-title', name === 'gate');
   window.scrollTo(0, 0);
 }
