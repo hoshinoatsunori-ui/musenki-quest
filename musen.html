@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.7
+  Version 2.8
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -694,7 +694,6 @@
       <div class="picks" id="q-picks"></div>
       <div class="say" id="q-say"></div>
       <div class="btn-row gap">
-        <button id="btn-replay" class="btn quiet" style="display:none">♪ もう一度きく</button>
         <button id="btn-cell" class="btn quiet" style="display:none">電池をつかう</button>
       </div>
       <div class="btn-row gap" id="q-after" style="display:none">
@@ -1470,16 +1469,9 @@ function arriveAt(ch) {
   if (ch === ',' && game.steps > 2 && Math.random() < 0.24) startBattle('random', -1);
 }
 
-// ===== 音のミニ問題 =====
-// 4択のままだが、耳と符号をつかう。無線ならではの題材なので、
-// 問題シートに書けない種類の出題をここで補う。
-
-var MORSE = {
-  A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....',
-  I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.', O: '---', P: '.--.',
-  Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-',
-  Y: '-.--', Z: '--..'
-};
+// ===== その場で作るミニ問題 =====
+// 4択のままだが、シートに書けない種類の出題をここで補う。
+// 音を鳴らす問題は、スピーカーのない環境では答えられないので置いていない。
 
 var PHONETIC = {
   A: 'Alfa', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot',
@@ -1489,7 +1481,7 @@ var PHONETIC = {
   X: 'X-ray', Y: 'Yankee', Z: 'Zulu'
 };
 
-var LETTERS = Object.keys(MORSE);
+var LETTERS = Object.keys(PHONETIC);
 
 function shuffle(list) {
   var out = list.slice(0);
@@ -1503,51 +1495,6 @@ function shuffle(list) {
 function pickLetters(n, must) {
   var pool = shuffle(LETTERS.filter(function (c) { return c !== must; })).slice(0, n - 1);
   return shuffle(pool.concat([must]));
-}
-
-// 符号を鳴らす。音のファイルは持たず、その場で作る。
-var beeper = null;
-function playMorse(code) {
-  try {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    if (!beeper) beeper = new AC();
-    if (beeper.state === 'suspended') beeper.resume();
-
-    var unit = 0.09;
-    var at = beeper.currentTime + 0.15;
-    for (var i = 0; i < code.length; i++) {
-      var len = code.charAt(i) === '-' ? unit * 3 : unit;
-      var osc = beeper.createOscillator();
-      var vol = beeper.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 700;
-      vol.gain.setValueAtTime(0.0001, at);
-      vol.gain.exponentialRampToValueAtTime(0.22, at + 0.008);
-      vol.gain.setValueAtTime(0.22, at + len - 0.008);
-      vol.gain.exponentialRampToValueAtTime(0.0001, at + len);
-      osc.connect(vol); vol.connect(beeper.destination);
-      osc.start(at); osc.stop(at + len + 0.01);
-      at += len + unit;
-    }
-    return true;
-  } catch (e) { return false; }
-}
-
-function makeMorseQuestion(area) {
-  var answer = LETTERS[Math.floor(Math.random() * LETTERS.length)];
-  var choices = pickLetters(4, answer);
-  return {
-    id: 'MORSE-' + answer,
-    area: area,
-    level: 2,
-    kind: 'morse',
-    code: MORSE[answer],
-    text: '聞こえたモールス符号は どの文字ですか。',
-    choices: choices.map(function (c) { return c + '（' + MORSE[c] + '）'; }),
-    answer: choices.indexOf(answer),
-    note: answer + ' は ' + MORSE[answer] + ' です。'
-  };
 }
 
 function makePhoneticQuestion(area) {
@@ -1626,11 +1573,10 @@ function hideAsk() {
 // ===== 出題の選び方 =====
 
 function pickQuestion(areaKey, tier) {
-  // ときどき、耳をつかう問題や息抜きの問題を混ぜる
+  // ときどき、その場で作る問題や息抜きの問題を混ぜる
   var roll = Math.random();
-  if (roll < 0.07) return makeMorseQuestion(areaKey);
-  if (roll < 0.12) return makePhoneticQuestion(areaKey);
-  if (roll < 0.20) {
+  if (roll < 0.07) return makePhoneticQuestion(areaKey);
+  if (roll < 0.15) {
     var side = pickFromGenres(game.bonusGenres);
     if (side) return side;
   }
@@ -1794,11 +1740,6 @@ function askQuestion(question) {
   game.fight.misses = 0;
   game.fight.settled = false;
   drawQuestion(question);
-
-  // モールスの問題は、押せば何度でも鳴らし直せる
-  var replay = el('btn-replay');
-  replay.style.display = (question.kind === 'morse') ? 'inline-block' : 'none';
-  if (question.kind === 'morse') playMorse(question.code);
 
   paintCellButton();
   startClock();
@@ -1988,7 +1929,6 @@ function endRaidRun() {
   game.fight = null;
   game.combo = 0;
   el('btn-cell').style.display = 'none';
-  el('btn-replay').style.display = 'none';
   el('btn-flee').style.display = 'none';
 
   el('q-picks').innerHTML = '';
@@ -2008,7 +1948,6 @@ function backToMap() {
   stopClock();
   game.fight = null;
   el('btn-cell').style.display = 'none';
-  el('btn-replay').style.display = 'none';
   el('btn-flee').style.display = 'none';
   drawMap();
   paintStatus();
@@ -2856,12 +2795,6 @@ el('btn-reload-insight').addEventListener('click', openInsight);
 el('btn-reload-mine').addEventListener('click', openMine);
 el('tab-total').addEventListener('click', function () { rosterMode = 'total'; drawRoster(); });
 el('tab-week').addEventListener('click', function () { rosterMode = 'week'; drawRoster(); });
-el('btn-replay').addEventListener('click', function () {
-  if (game.fight && game.fight.question && game.fight.question.kind === 'morse') {
-    playMorse(game.fight.question.code);
-  }
-});
-
 el('ask-yes').addEventListener('click', function () {
   var run = askYes;
   hideAsk();
