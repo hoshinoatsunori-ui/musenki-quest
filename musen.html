@@ -1,6 +1,6 @@
 <!--
   無線クエスト2
-  Version 2.8
+  Version 2.9
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -301,75 +301,28 @@
   .hub-menu { flex-direction: column; }
   .hub-menu .btn { width: 100%; }
 
-  @media (min-width: 900px) {
-    #stage.wide { max-width: 1120px; }
-    .duel { grid-template-columns: minmax(300px, 380px) 1fr; align-items: start; }
-    .trek { grid-template-columns: 1fr 210px; align-items: start; }
-    .trek .pad { margin-top: 10px; justify-content: start; }
-    .trek .btn-row { justify-content: start; }
-    .hub { grid-template-columns: 1fr minmax(240px, 300px); align-items: start; }
-  }
+  
 
   /* 低い画面では、エリアの行を詰めて6つとも収める */
-  @media (max-height: 900px) {
-    .area { padding: 8px 12px; gap: 11px; grid-template-columns: 44px 1fr auto; }
-    .area svg { width: 44px; height: 39px; }
-    .area .name { font-size: 14px; }
-    .area .sub { font-size: 11.5px; }
-    .areas { gap: 9px; }
-    .relics { margin-top: 4px; }
-    .relics i { width: 9px; height: 9px; }
-    .hub-menu .btn { padding: 8px 16px; }
-    #skill-list .badge, #gear-list { font-size: 12px; }
-  }
+  
 
   /* ノートPCの高さでも、エリア6つとメニューが1画面に収まるところまで詰める */
-  @media (max-height: 800px) {
-    .area { padding: 6px 10px; gap: 9px; grid-template-columns: 38px 1fr auto; }
-    .area svg { width: 38px; height: 34px; }
-    .area .name { font-size: 13.5px; }
-    .area .sub { font-size: 11px; }
-    .areas { gap: 7px; }
-    .frame > h2 { margin-bottom: 8px; padding-bottom: 6px; font-size: 14px; }
-    .hub .hint { font-size: 11.5px; }
-    .hub-menu .btn { padding: 7px 14px; font-size: 14px; }
-    #skill-list .badge { font-size: 11px; }
-    #gear-list { font-size: 11.5px; line-height: 1.55; }
-  }
+  
 
   /* 720pxの高さでも収まるところまで。文言は削らず、余白と寸法だけを詰める */
-  @media (max-height: 740px) {
-    .frame { padding: 10px 13px; margin-bottom: 9px; }
-    .hub, .hub-side { gap: 10px; }
-    .area { padding: 5px 9px; grid-template-columns: 34px 1fr auto; }
-    .area svg { width: 34px; height: 30px; }
-    .areas { gap: 5px; }
-    .area .sub { font-size: 10.5px; }
-    .hub .hint { font-size: 11px; }
-    .hub-menu { gap: 7px; }
-    .hub-menu .btn { padding: 6px 12px; font-size: 13.5px; }
-    .relics { margin-top: 3px; }
-  }
+  
 
   /* 画面が低いときは、余白と絵を詰めて1画面に収める */
-  @media (max-height: 860px) {
-    .frame { padding: 12px 15px; margin-bottom: 11px; }
-    .arena { padding: 6px 0 4px; }
-    .foe-svg { width: 138px; height: 138px; }
-    .foe-name { margin-top: 3px; font-size: 14px; }
-    .clock { margin-bottom: 9px; }
-    .qbody { font-size: 16px; margin: 6px 0 10px; line-height: 1.7; }
-    .pick { padding: 8px 12px; }
-    .picks { gap: 7px; }
-    .say { margin-top: 10px; }
-    .gap { margin-top: 10px; }
-  }
+  
 
-  @media (max-height: 700px) {
-    .foe-svg { width: 112px; height: 112px; }
-    .qbody { font-size: 15px; }
-    .pick { padding: 7px 11px; }
-  }
+  
+
+  /* スマホでは、敵の絵と名前とHPを横1行にまとめて縦を稼ぐ。
+     選択肢4つが画面に入ることを最優先にしている。 */
+  
+
+  /* 画面の低いスマホ（Safariのバーが出ている状態など）では、もう一段詰める */
+  
 
   /* ===== 確認メニュー ===== */
   #ask {
@@ -429,6 +382,7 @@
     letter-spacing: .06em; margin-top: 3px;
   }
   .foe-name .weak.known { color: var(--gold); }
+  .foe-meter { max-width: 280px; margin: 8px auto 0; }
   .say .combo {
     display: inline-block; margin-left: 10px; color: var(--gold);
     font-weight: 700; letter-spacing: .08em;
@@ -501,6 +455,124 @@
     opacity: 0; transition: opacity .3s; pointer-events: none;
   }
   #toast.on { opacity: 1; }
+
+  /* ===== 画面サイズごとの調整 =====
+     メディアクエリは詳細度を上げないので、通常のルールより後ろに置く。
+     ここより前に同じセレクタがあると、そちらが勝ってしまうため。 */
+
+  @media (min-width: 900px) {
+    #stage.wide { max-width: 1120px; }
+    .duel { grid-template-columns: minmax(300px, 380px) 1fr; align-items: start; }
+    .trek { grid-template-columns: 1fr 210px; align-items: start; }
+    .trek .pad { margin-top: 10px; justify-content: start; }
+    .trek .btn-row { justify-content: start; }
+    .hub { grid-template-columns: 1fr minmax(240px, 300px); align-items: start; }
+  }
+
+  @media (max-height: 900px) {
+    .area { padding: 8px 12px; gap: 11px; grid-template-columns: 44px 1fr auto; }
+    .area svg { width: 44px; height: 39px; }
+    .area .name { font-size: 14px; }
+    .area .sub { font-size: 11.5px; }
+    .areas { gap: 9px; }
+    .relics { margin-top: 4px; }
+    .relics i { width: 9px; height: 9px; }
+    .hub-menu .btn { padding: 8px 16px; }
+    #skill-list .badge, #gear-list { font-size: 12px; }
+  }
+
+  @media (max-height: 800px) {
+    .area { padding: 6px 10px; gap: 9px; grid-template-columns: 38px 1fr auto; }
+    .area svg { width: 38px; height: 34px; }
+    .area .name { font-size: 13.5px; }
+    .area .sub { font-size: 11px; }
+    .areas { gap: 7px; }
+    .frame > h2 { margin-bottom: 8px; padding-bottom: 6px; font-size: 14px; }
+    .hub .hint { font-size: 11.5px; }
+    .hub-menu .btn { padding: 7px 14px; font-size: 14px; }
+    #skill-list .badge { font-size: 11px; }
+    #gear-list { font-size: 11.5px; line-height: 1.55; }
+  }
+
+  @media (max-height: 740px) {
+    .frame { padding: 10px 13px; margin-bottom: 9px; }
+    .hub, .hub-side { gap: 10px; }
+    .area { padding: 5px 9px; grid-template-columns: 34px 1fr auto; }
+    .area svg { width: 34px; height: 30px; }
+    .areas { gap: 5px; }
+    .area .sub { font-size: 10.5px; }
+    .hub .hint { font-size: 11px; }
+    .hub-menu { gap: 7px; }
+    .hub-menu .btn { padding: 6px 12px; font-size: 13.5px; }
+    .relics { margin-top: 3px; }
+  }
+
+  @media (max-height: 860px) {
+    .frame { padding: 12px 15px; margin-bottom: 11px; }
+    .arena { padding: 6px 0 4px; }
+    .foe-svg { width: 138px; height: 138px; }
+    .foe-name { margin-top: 3px; font-size: 14px; }
+    .clock { margin-bottom: 9px; }
+    .qbody { font-size: 16px; margin: 6px 0 10px; line-height: 1.7; }
+    .pick { padding: 8px 12px; }
+    .picks { gap: 7px; }
+    .say { margin-top: 10px; }
+    .gap { margin-top: 10px; }
+  }
+
+  @media (max-height: 700px) {
+    .foe-svg { width: 112px; height: 112px; }
+    .qbody { font-size: 15px; }
+    .pick { padding: 7px 11px; }
+  }
+
+  @media (max-width: 700px) {
+    .arena {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      grid-template-rows: auto auto;
+      align-items: center;
+      column-gap: 12px;
+      row-gap: 4px;
+      text-align: left;
+      padding: 2px 0 0;
+      background: none;
+    }
+    /* 絵は左に2行ぶん、名前とHPは右に縦に並べる */
+    .arena > #foe-art { grid-column: 1; grid-row: 1 / span 2; }
+    .arena > .foe-name { grid-column: 2; grid-row: 1; align-self: end; }
+    .arena > .foe-meter { grid-column: 2; grid-row: 2; align-self: start; }
+    .arena .foe-svg { width: 86px; height: 86px; margin: 0; }
+    .foe-name { margin-top: 0; font-size: 14px; }
+    .foe-name .tier { display: block; margin-left: 0; }
+    .foe-name .weak { margin-top: 2px; }
+    .foe-meter { max-width: none; margin: 7px 0 0; }
+    .pop { left: 43px; top: 20%; font-size: 25px; }
+
+    .duel { gap: 10px; }
+    .frame { padding: 11px 13px; margin-bottom: 10px; }
+    .status { gap: 9px; font-size: 13px; }
+    .status .meter { flex-basis: 100px; }
+    .status .cap { font-size: 10px; }
+    .qbody { font-size: 15.5px; margin: 5px 0 9px; line-height: 1.65; }
+    .qgenre { font-size: 11px; }
+    .clock { margin-bottom: 8px; }
+    .picks { gap: 6px; }
+    .pick { padding: 8px 11px; }
+    .say { margin-top: 8px; }
+  }
+
+  @media (max-width: 700px) and (max-height: 660px) {
+    .arena { grid-template-columns: 72px 1fr; }
+    .arena .foe-svg { width: 72px; height: 72px; }
+    .frame { padding: 9px 12px; margin-bottom: 8px; }
+    .duel { gap: 8px; }
+    .qbody { font-size: 15px; margin: 4px 0 8px; line-height: 1.6; }
+    .picks { gap: 5px; }
+    .pick { padding: 7px 10px; }
+    .clock { margin-bottom: 7px; }
+    .pop { left: 36px; }
+  }
 
   @media (max-width: 480px) {
     #stage { padding: 10px 10px 34px; }
@@ -674,7 +746,7 @@
         <div class="pop" id="pop"></div>
         <div id="foe-art"></div>
         <div class="foe-name" id="foe-name"></div>
-        <div class="meter gap" style="max-width:280px;margin:8px auto 0">
+        <div class="meter foe-meter">
           <div class="bar foe"><i id="foe-bar" style="width:100%"></i></div>
         </div>
       </div>
